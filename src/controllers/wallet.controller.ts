@@ -35,7 +35,7 @@ export class WalletController {
 
         // 2. Add to pending balance (will be moved to balance after delivery/return period)
         wallet.pendingBalance += netAmount;
-        await wallet.save();
+        await (wallet as any).save();
 
         // 3. Record transaction
         await Transaction.create({

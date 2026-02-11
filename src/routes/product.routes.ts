@@ -13,6 +13,7 @@ router.post('/categories', protect, restrictTo('admin'), CategoryController.crea
 router.get('/', ProductController.getProducts); // Public listing
 router.get('/:slug', ProductController.getProductBySlug);
 router.post('/', protect, restrictTo('seller', 'admin'), ProductController.createProduct);
+router.post('/bulk-import', protect, restrictTo('seller', 'admin'), ProductController.bulkImportProducts);
 router.get('/my-products', protect, restrictTo('seller', 'admin'), ProductController.getMyProducts);
 
 export default router;

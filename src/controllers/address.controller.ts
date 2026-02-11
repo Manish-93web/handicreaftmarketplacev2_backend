@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import Address from '../models/address.model';
+import { Address } from '../models/address.model';
 import { ApiResponse } from '../utils/ApiResponse';
 
 export class AddressController {

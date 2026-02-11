@@ -13,6 +13,7 @@ router.patch('/users/:userId/status', AdminController.updateUserStatus);
 
 router.get('/shops', AdminController.getAllShops);
 router.patch('/shops/:shopId/approve', AdminController.approveShopKYC);
+router.patch('/products/:productId/review', AdminController.reviewProduct);
 
 router.get('/stats', AdminController.getDashboardStats);
 

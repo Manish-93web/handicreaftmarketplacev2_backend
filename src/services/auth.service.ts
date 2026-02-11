@@ -1,6 +1,6 @@
-import User, { IUser } from '../models/user.model';
-import OTP from '../models/otp.model';
-import RefreshToken from '../models/refreshToken.model';
+import { User, IUser } from '../models/user.model';
+import { OTP } from '../models/otp.model';
+import { RefreshToken } from '../models/refreshToken.model';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { AppError } from '../utils/AppError';
@@ -16,7 +16,7 @@ export class AuthService {
     }
 
     // Generate Refresh Token
-    static async generateRefreshToken(user: IUser, ipAddress: string) {
+    static async generateRefreshToken(user: IUser, ipAddress: string, userAgent?: string) {
         const token = crypto.randomBytes(40).toString('hex');
         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
@@ -24,9 +24,56 @@ export class AuthService {
             userId: user._id,
             token,
             expiresAt,
+            ipAddress,
+            userAgent
         });
-        await refreshToken.save();
+        await (refreshToken as any).save();
         return token;
+    }
+
+    // Refresh Access Token with Rotation
+    static async refreshAccessToken(oldToken: string, ipAddress: string, userAgent?: string) {
+        const refreshToken = await RefreshToken.findOne({ token: oldToken });
+
+        if (!refreshToken) {
+            throw new AppError('Refresh token not found', 401);
+        }
+
+        // Token Reuse Detection
+        if (refreshToken.revoked) {
+            // This token was already used! Potential breach.
+            // Revoke all tokens for this user to be safe.
+            await RefreshToken.deleteMany({ userId: refreshToken.userId });
+            throw new AppError('Token already used. For security, all sessions have been revoked.', 401);
+        }
+
+        if (refreshToken.expiresAt < new Date()) {
+            throw new AppError('Refresh token expired', 401);
+        }
+
+        const user = await User.findById(refreshToken.userId);
+        if (!user) throw new AppError('User not found', 404);
+
+        // Generate NEW tokens
+        const newAccessToken = this.generateAccessToken(user);
+        const newRefreshTokenStr = crypto.randomBytes(40).toString('hex');
+
+        // Rotate: Revoke old, link to new
+        refreshToken.revoked = true;
+        refreshToken.replacedByToken = newRefreshTokenStr;
+        await (refreshToken as any).save();
+
+        // Save new refresh token
+        const newRefreshToken = new RefreshToken({
+            userId: user._id,
+            token: newRefreshTokenStr,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            ipAddress,
+            userAgent
+        });
+        await (newRefreshToken as any).save();
+
+        return { accessToken: newAccessToken, refreshToken: newRefreshTokenStr };
     }
 
     // Register User
@@ -75,5 +122,52 @@ export class AuthService {
         await User.findOneAndUpdate({ email }, { isVerified: true });
 
         return true;
+    }
+
+    // Forgot Password - Step 1: Send OTP
+    static async forgotPassword(email: string) {
+        const user = await User.findOne({ email });
+        if (!user) {
+            throw new AppError('No user found with that email address', 404);
+        }
+
+        const otp = await this.generateOTP(email);
+        // In real scenario, trigger email job here
+        return otp;
+    }
+
+    // Forgot Password - Step 2: Reset Password with OTP
+    static async resetPassword(email: string, otp: string, password: string) {
+        const record = await OTP.findOne({ email, otp });
+        if (!record || record.expiresAt < new Date()) {
+            throw new AppError('Invalid or expired OTP', 400);
+        }
+
+        const user = await User.findOne({ email });
+        if (!user) throw new AppError('User not found', 404);
+
+        user.password = password;
+        await user.save();
+
+        await OTP.deleteOne({ _id: record._id });
+        return true;
+    }
+
+    // Google OAuth Login Scaffolding
+    static async googleLogin(idToken: string) {
+        // In real app, verify idToken with google-auth-library
+        // For now, mockup user finding/creation
+        const mockPayload = { email: 'user@gmail.com', name: 'Google User' }; // Placeholder
+
+        let user = await User.findOne({ email: mockPayload.email });
+        if (!user) {
+            user = await User.create({
+                email: mockPayload.email,
+                name: mockPayload.name,
+                role: 'buyer',
+                isVerified: true
+            });
+        }
+        return user;
     }
 }

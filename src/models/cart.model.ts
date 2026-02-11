@@ -24,4 +24,4 @@ const CartSchema: Schema = new Schema({
 // Pre-save hook or middleware could be added to ensure quantities don't exceed stock
 // but for now we'll handle it in the controller.
 
-export default mongoose.model<ICart>('Cart', CartSchema);
+export const Cart = mongoose.model<ICart>('Cart', CartSchema);

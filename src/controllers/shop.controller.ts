@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import Shop from '../models/shop.model';
-import User from '../models/user.model';
+import { Shop } from '../models/shop.model';
+import { User } from '../models/user.model';
 import { ApiResponse } from '../utils/ApiResponse';
 import { AppError } from '../utils/AppError';
 
@@ -53,9 +53,17 @@ export class ShopController {
 
     static async updateShop(req: Request, res: Response, next: NextFunction) {
         try {
+            const { policies, ...otherData } = req.body;
+            const updatePayload: any = { ...otherData };
+
+            // Handle nested policies if provided
+            if (policies) {
+                updatePayload.policies = policies;
+            }
+
             const shop = await Shop.findOneAndUpdate(
                 { sellerId: req.user?._id },
-                req.body,
+                updatePayload,
                 { new: true, runValidators: true }
             );
 
@@ -63,6 +71,29 @@ export class ShopController {
                 throw new AppError('Shop not found', 404);
             }
             return ApiResponse.success(res, 200, 'Shop updated successfully', { shop });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    static async updateKYC(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { documents } = req.body; // Array of { documentType, url }
+
+            const shop = await Shop.findOneAndUpdate(
+                { sellerId: req.user?._id },
+                {
+                    kycDocuments: documents,
+                    kycStatus: 'pending' // Reset status to pending on update
+                },
+                { new: true }
+            );
+
+            if (!shop) {
+                throw new AppError('Shop not found', 404);
+            }
+
+            return ApiResponse.success(res, 200, 'KYC documents submitted', { shop });
         } catch (error) {
             next(error);
         }

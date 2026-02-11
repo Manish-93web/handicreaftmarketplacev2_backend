@@ -1,5 +1,5 @@
 import { Server, Socket } from 'socket.io';
-import ChatMessage from '../models/chat.model';
+import { ChatMessage } from '../models/chat.model';
 
 export class SocketService {
     private static _io: Server;

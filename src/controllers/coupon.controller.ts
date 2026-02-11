@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import Coupon from '../models/coupon.model';
+import { Coupon } from '../models/coupon.model';
 import { ApiResponse } from '../utils/ApiResponse';
 import { AppError } from '../utils/AppError';
 

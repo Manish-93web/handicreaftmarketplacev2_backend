@@ -29,4 +29,4 @@ const CategorySchema: Schema = new Schema({
 CategorySchema.index({ parent: 1 });
 CategorySchema.index({ slug: 1 });
 
-export default mongoose.model<ICategory>('Category', CategorySchema);
+export const Category = mongoose.model<ICategory>('Category', CategorySchema);

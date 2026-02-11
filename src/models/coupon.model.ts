@@ -24,4 +24,4 @@ const CouponSchema: Schema = new Schema({
     isActive: { type: Boolean, default: true }
 }, { timestamps: true });
 
-export default mongoose.model<ICoupon>('Coupon', CouponSchema);
+export const Coupon = mongoose.model<ICoupon>('Coupon', CouponSchema);

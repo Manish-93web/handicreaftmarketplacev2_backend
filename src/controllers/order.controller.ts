@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { Order, SubOrder } from '../models/order.model';
-import Cart from '../models/cart.model';
-import Address from '../models/address.model';
-import Coupon from '../models/coupon.model';
+import { Cart } from '../models/cart.model';
+import { Address } from '../models/address.model';
+import { Coupon } from '../models/coupon.model';
 import { ApiResponse } from '../utils/ApiResponse';
 import { AppError } from '../utils/AppError';
 import { WalletController } from './wallet.controller';
@@ -65,7 +65,7 @@ export class OrderController {
 
                     grandTotal -= couponDiscount;
                     coupon.usedCount += 1;
-                    await coupon.save();
+                    await (coupon as any).save();
                 }
             }
 
@@ -103,7 +103,7 @@ export class OrderController {
 
             // 6. Clear Cart
             cart.items = [];
-            await cart.save();
+            await (cart as any).save();
 
             return ApiResponse.success(res, 201, 'Order placed successfully', {
                 order: parentOrder,
@@ -123,12 +123,80 @@ export class OrderController {
         }
     }
 
+    static async getOrderById(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            const order = await Order.findById(id);
+            if (!order) throw new AppError('Order not found', 404);
+
+            // Fetch suborders for this parent order
+            const subOrders = await SubOrder.find({ orderId: id }).populate('shopId', 'name slug');
+
+            return ApiResponse.success(res, 200, 'Order details fetched', { order, subOrders });
+        } catch (error) {
+            next(error);
+        }
+    }
+
     static async getShopOrders(req: Request, res: Response, next: NextFunction) {
         try {
             // Identify shop of the seller
-            const shopId = req.query.shopId; // Should be verified via seller middleware
+            const shopId = req.query.shopId as string;
             const orders = await SubOrder.find({ shopId }).sort('-createdAt');
             return ApiResponse.success(res, 200, 'Shop orders fetched', { orders });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    static async updateSubOrderStatus(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { subOrderId } = req.params;
+            const { status } = req.body;
+
+            const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+            if (!validStatuses.includes(status)) throw new AppError('Invalid status', 400);
+
+            const subOrder = await SubOrder.findByIdAndUpdate(
+                subOrderId,
+                { status },
+                { new: true }
+            );
+
+            if (!subOrder) throw new AppError('Sub-order not found', 404);
+
+            // Check if all sub-orders are delivered, update parent order status
+            const allSubOrders = await SubOrder.find({ orderId: subOrder.orderId });
+            const allDelivered = allSubOrders.every(so => so.status === 'delivered');
+            if (allDelivered) {
+                await Order.findByIdAndUpdate(subOrder.orderId, { status: 'delivered' });
+            } else if (status === 'shipped') {
+                await Order.findByIdAndUpdate(subOrder.orderId, { status: 'shipped' });
+            }
+
+            return ApiResponse.success(res, 200, `Order marked as ${status}`, { subOrder });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    static async updateSubOrderTracking(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { subOrderId } = req.params;
+            const { trackingNumber, carrier } = req.body;
+
+            const subOrder = await SubOrder.findByIdAndUpdate(
+                subOrderId,
+                { trackingNumber, carrier, status: 'shipped' },
+                { new: true }
+            );
+
+            if (!subOrder) throw new AppError('Sub-order not found', 404);
+
+            // Also update parent order status to shipped if it was pending/processing
+            await Order.findByIdAndUpdate(subOrder.orderId, { status: 'shipped' });
+
+            return ApiResponse.success(res, 200, 'Tracking information updated', { subOrder });
         } catch (error) {
             next(error);
         }

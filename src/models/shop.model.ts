@@ -50,4 +50,4 @@ const ShopSchema: Schema = new Schema({
 
 ShopSchema.index({ name: 'text', description: 'text' });
 
-export default mongoose.model<IShop>('Shop', ShopSchema);
+export const Shop = mongoose.model<IShop>('Shop', ShopSchema);

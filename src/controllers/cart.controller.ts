@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import Cart from '../models/cart.model';
-import Product from '../models/product.model';
+import { Cart } from '../models/cart.model';
+import { Product } from '../models/product.model';
 import { ApiResponse } from '../utils/ApiResponse';
 import { AppError } from '../utils/AppError';
 
@@ -45,7 +45,7 @@ export class CartController {
                 });
             }
 
-            await cart.save();
+            await (cart as any).save();
             return ApiResponse.success(res, 200, 'Item added to cart', { cart });
         } catch (error) {
             next(error);
@@ -67,7 +67,7 @@ export class CartController {
                 cart.items[itemIndex].quantity = quantity;
             }
 
-            await cart.save();
+            await (cart as any).save();
             return ApiResponse.success(res, 200, 'Quantity updated', { cart });
         } catch (error) {
             next(error);
@@ -81,7 +81,7 @@ export class CartController {
             if (!cart) throw new AppError('Cart not found', 404);
 
             cart.items = cart.items.filter(p => p.productId.toString() !== productId);
-            await cart.save();
+            await (cart as any).save();
 
             return ApiResponse.success(res, 200, 'Item removed', { cart });
         } catch (error) {

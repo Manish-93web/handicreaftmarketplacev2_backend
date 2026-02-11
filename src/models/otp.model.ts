@@ -12,4 +12,4 @@ const OTPSchema: Schema = new Schema({
     expiresAt: { type: Date, required: true, index: { expires: 0 } }, // Auto-delete after expiry
 }, { timestamps: true });
 
-export default mongoose.model<IOTP>('OTP', OTPSchema);
+export const OTP = mongoose.model<IOTP>('OTP', OTPSchema);

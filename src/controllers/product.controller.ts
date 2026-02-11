@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import Product from '../models/product.model';
-import Shop from '../models/shop.model';
+import { Product } from '../models/product.model';
+import { Shop } from '../models/shop.model';
 import { ApiResponse } from '../utils/ApiResponse';
 import { AppError } from '../utils/AppError';
 
@@ -13,12 +13,12 @@ export class ProductController {
                 throw new AppError('Shop not found for this user', 404);
             }
 
-            const { title, price, category, ...otherData } = req.body;
+            const { title, price, category, status, ...otherData } = req.body;
 
             // Auto-generate slug
             const slug = title.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '') + '-' + Date.now();
 
-            // Auto-generate SKU if not provided (simple logic for now)
+            // Auto-generate SKU if not provided
             const sku = req.body.sku || `SKU-${Date.now()}`;
 
             const product = await Product.create({
@@ -28,10 +28,37 @@ export class ProductController {
                 category,
                 shopId: shop._id,
                 slug,
-                sku
+                sku,
+                approvalStatus: status === 'submit' ? 'pending' : 'draft',
+                isPublished: status === 'submit' ? false : false // Admin must approve
             });
 
             return ApiResponse.success(res, 201, 'Product created successfully', { product });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    static async bulkImportProducts(req: Request, res: Response, next: NextFunction) {
+        try {
+            const shop = await Shop.findOne({ sellerId: req.user?._id });
+            if (!shop) throw new AppError('Shop not found', 404);
+
+            const { products } = req.body; // Expecting array of product objects
+            if (!Array.isArray(products)) throw new AppError('Invalid products data', 400);
+
+            const count = products.length;
+            const importedProducts = products.map(p => ({
+                ...p,
+                shopId: shop._id,
+                slug: (p.title || 'product').toLowerCase().replace(/ /g, '-') + '-' + Math.random().toString(36).substring(7),
+                sku: p.sku || `SKU-${Math.random().toString(36).substring(7).toUpperCase()}`,
+                approvalStatus: 'draft'
+            }));
+
+            await Product.insertMany(importedProducts);
+
+            return ApiResponse.success(res, 201, `Imported ${count} products as drafts`, { count });
         } catch (error) {
             next(error);
         }

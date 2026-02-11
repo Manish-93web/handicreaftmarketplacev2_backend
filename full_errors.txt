@@ -1,0 +1,8 @@
+﻿src/controllers/category.controller.ts(13,17): error TS7034: Variable 'ancestors' implicitly has type 'any[]' in some locations where its type cannot be determined.
+src/controllers/category.controller.ts(32,17): error TS7005: Variable 'ancestors' implicitly has an 'any[]' type.
+src/controllers/chat.controller.ts(36,65): error TS18048: 'currentUserId' is possibly 'undefined'.
+src/controllers/seed.controller.ts(21,50): error TS18046: 'error' is of type 'unknown'.
+src/models/user.model.ts(39,64): error TS2349: This expression is not callable.
+  Type 'SaveOptions' has no call signatures.
+src/models/user.model.ts(43,5): error TS2349: This expression is not callable.
+  Type 'SaveOptions' has no call signatures.

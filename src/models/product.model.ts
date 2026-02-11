@@ -50,6 +50,7 @@ export interface IProduct extends Document {
         average: number;
         count: number;
     };
+    approvalStatus: 'draft' | 'pending' | 'approved' | 'rejected';
 
     createdAt: Date;
     updatedAt: Date;
@@ -112,6 +113,11 @@ const ProductSchema: Schema = new Schema({
     ratings: {
         average: { type: Number, default: 0 },
         count: { type: Number, default: 0 }
+    },
+    approvalStatus: {
+        type: String,
+        enum: ['draft', 'pending', 'approved', 'rejected'],
+        default: 'draft'
     }
 }, { timestamps: true });
 
@@ -120,4 +126,4 @@ ProductSchema.index({ shopId: 1 });
 ProductSchema.index({ category: 1 });
 ProductSchema.index({ price: 1 });
 
-export default mongoose.model<IProduct>('Product', ProductSchema);
+export const Product = mongoose.model<IProduct>('Product', ProductSchema);

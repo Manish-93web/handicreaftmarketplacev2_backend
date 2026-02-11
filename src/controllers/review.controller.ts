@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import Review from '../models/review.model';
+import { Review } from '../models/review.model';
 import { ApiResponse } from '../utils/ApiResponse';
 import { AppError } from '../utils/AppError';
 import { Order, SubOrder } from '../models/order.model';

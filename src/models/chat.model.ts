@@ -12,10 +12,10 @@ const ChatMessageSchema: Schema = new Schema({
     senderId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     receiverId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     orderId: { type: Schema.Types.ObjectId, ref: 'Order' },
-    message: { type: Schema.Types.ObjectId, required: true },
+    message: { type: String, required: true },
     read: { type: Boolean, default: false }
 }, { timestamps: true });
 
 ChatMessageSchema.index({ senderId: 1, receiverId: 1 });
 
-export default mongoose.model<IChatMessage>('ChatMessage', ChatMessageSchema);
+export const ChatMessage = mongoose.model<IChatMessage>('ChatMessage', ChatMessageSchema);

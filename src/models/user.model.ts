@@ -34,12 +34,12 @@ const UserSchema: Schema = new Schema(
 );
 
 // Hash password before saving
-UserSchema.pre<IUser>('save', async function (next) {
-    if (!this.isModified('password') || !this.password) return next();
+UserSchema.pre('save', async function () {
+    const user = this as any;
+    if (!user.isModified('password') || !user.password) return;
 
     const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
+    user.password = await bcrypt.hash(user.password, salt);
 });
 
 // Compare password method
@@ -48,4 +48,4 @@ UserSchema.methods.comparePassword = async function (candidatePassword: string):
     return await bcrypt.compare(candidatePassword, this.password);
 };
 
-export default mongoose.model<IUser>('User', UserSchema);
+export const User = mongoose.model<IUser>('User', UserSchema);

@@ -17,9 +17,20 @@ import reviewRoutes from './routes/review.routes';
 import chatRoutes from './routes/chat.routes';
 import adminRoutes from './routes/admin.routes';
 import couponRoutes from './routes/coupon.routes';
+import paymentRoutes from './routes/payment.routes';
+import rateLimit from 'express-rate-limit';
 
 // Middleware
 app.use(helmet());
+
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
+    message: 'Too many requests from this IP, please try again after 15 minutes'
+});
+
+app.use('/api', limiter);
+
 app.use(cors({
     origin: 'http://localhost:3000', // Allow frontend
     credentials: true
@@ -27,6 +38,9 @@ app.use(cors({
 app.use(json());
 app.use(urlencoded({ extended: true }));
 app.use(cookieParser());
+
+import { csrfProtection } from './middlewares/csrf.middleware';
+app.use(csrfProtection);
 
 // Routes
 app.use('/api/v1/auth', authRoutes);
@@ -40,6 +54,7 @@ app.use('/api/v1/reviews', reviewRoutes);
 app.use('/api/v1/chat', chatRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/coupons', couponRoutes);
+app.use('/api/v1/payments', paymentRoutes);
 
 
 import { globalErrorHandler } from './middlewares/error.middleware';

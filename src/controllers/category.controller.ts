@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import Category from '../models/category.model';
+import { Category } from '../models/category.model';
 import { ApiResponse } from '../utils/ApiResponse';
 import { AppError } from '../utils/AppError';
 
@@ -10,7 +10,7 @@ export class CategoryController {
             const { name, parent, description, image } = req.body;
             const slug = name.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
 
-            let ancestors = [];
+            let ancestors: any[] = [];
             let level = 0;
 
             if (parent) {

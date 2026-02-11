@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import ChatMessage from '../models/chat.model';
+import { ChatMessage } from '../models/chat.model';
 import { ApiResponse } from '../utils/ApiResponse';
 
 export class ChatController {
@@ -25,6 +25,7 @@ export class ChatController {
     static async getMyChats(req: Request, res: Response, next: NextFunction) {
         try {
             const currentUserId = req.user?._id;
+            if (!currentUserId) return ApiResponse.error(res, 401, 'Unauthorized');
 
             // Get unique users current user has chatted with
             const messages = await ChatMessage.find({
@@ -32,7 +33,7 @@ export class ChatController {
             }).populate('senderId receiverId', 'name avatar');
 
             const chatPartners = new Map();
-            messages.forEach(msg => {
+            messages.forEach((msg: any) => {
                 const partner = msg.senderId._id.toString() === currentUserId.toString()
                     ? msg.receiverId
                     : msg.senderId;

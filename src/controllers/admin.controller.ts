@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import User from '../models/user.model';
-import Shop from '../models/shop.model';
+import { User } from '../models/user.model';
+import { Shop } from '../models/shop.model';
+import { Product } from '../models/product.model';
 import { ApiResponse } from '../utils/ApiResponse';
 import { AppError } from '../utils/AppError';
 
@@ -48,9 +49,36 @@ export class AdminController {
 
             shop.isVerified = true;
             // In a real app, we'd update a kycStatus field: shop.kycStatus = 'approved';
-            await shop.save();
+            await (shop as any).save();
 
             return ApiResponse.success(res, 200, 'Shop KYC approved', { shop });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    // --- Product Management ---
+    static async reviewProduct(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { productId } = req.params;
+            const { status } = req.body; // 'approved' | 'rejected'
+
+            if (!['approved', 'rejected'].includes(status)) {
+                throw new AppError('Invalid status', 400);
+            }
+
+            const product = await Product.findByIdAndUpdate(
+                productId,
+                {
+                    approvalStatus: status,
+                    isPublished: status === 'approved'
+                },
+                { new: true }
+            );
+
+            if (!product) throw new AppError('Product not found', 404);
+
+            return ApiResponse.success(res, 200, `Product ${status} successfully`, { product });
         } catch (error) {
             next(error);
         }

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import Category from '../models/category.model';
+import { Category } from '../models/category.model';
 import { ApiResponse } from '../utils/ApiResponse';
 
 export class SeedController {
@@ -17,7 +17,7 @@ export class SeedController {
             const created = await Category.insertMany(categories);
 
             return ApiResponse.success(res, 201, 'Categories seeded successfully', { created });
-        } catch (error) {
+        } catch (error: any) {
             return res.status(500).json({ error: error.message });
         }
     }
