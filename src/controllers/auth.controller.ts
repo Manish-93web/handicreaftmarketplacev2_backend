@@ -3,6 +3,7 @@ import { AuthService } from '../services/auth.service';
 import { ApiResponse } from '../utils/ApiResponse';
 import { AppError } from '../utils/AppError';
 import { User } from '../models/user.model';
+import { RefreshToken } from '../models/refreshToken.model';
 
 export class AuthController {
 

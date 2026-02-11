@@ -42,6 +42,18 @@ export interface IProduct extends Document {
     isPublished: boolean;
     isFeatured: boolean;
     isHandmade: boolean;
+    moq: number;
+    bulkPricing?: {
+        minQty: number;
+        price: number;
+    }[];
+    isPersonalizable: boolean;
+    personalizationFields?: {
+        name: string;
+        type: 'text' | 'image';
+    }[];
+    isSponsored: boolean;
+    sponsoredUntil?: Date;
 
     seoTitle?: string;
     seoDescription?: string;
@@ -106,6 +118,18 @@ const ProductSchema: Schema = new Schema({
     isPublished: { type: Boolean, default: false },
     isFeatured: { type: Boolean, default: false },
     isHandmade: { type: Boolean, default: true },
+    moq: { type: Number, default: 1 },
+    bulkPricing: [{
+        minQty: Number,
+        price: Number
+    }],
+    isPersonalizable: { type: Boolean, default: false },
+    personalizationFields: [{
+        name: String,
+        type: { type: String, enum: ['text', 'image'] }
+    }],
+    isSponsored: { type: Boolean, default: false },
+    sponsoredUntil: { type: Date },
 
     seoTitle: String,
     seoDescription: String,

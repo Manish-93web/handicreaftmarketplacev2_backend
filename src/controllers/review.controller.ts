@@ -3,6 +3,8 @@ import { Review } from '../models/review.model';
 import { ApiResponse } from '../utils/ApiResponse';
 import { AppError } from '../utils/AppError';
 import { Order, SubOrder } from '../models/order.model';
+import { Product } from '../models/product.model';
+import mongoose from 'mongoose';
 
 export class ReviewController {
 
@@ -47,9 +49,40 @@ export class ReviewController {
                 status: 'approved' // Auto-approve for MVP
             });
 
+            // Update Product Ratings
+            await ReviewController.calcAverageRatings(productId);
+
             return ApiResponse.success(res, 201, 'Review submitted', { review });
         } catch (error) {
             next(error);
+        }
+    }
+
+    private static async calcAverageRatings(productId: string) {
+        const stats = await Review.aggregate([
+            {
+                $match: { productId: new mongoose.Types.ObjectId(productId), status: 'approved' }
+            },
+            {
+                $group: {
+                    _id: '$productId',
+                    nRating: { $sum: 1 },
+                    avgRating: { $avg: '$rating' }
+                }
+            }
+        ]);
+
+        if (stats.length > 0) {
+            await Product.findByIdAndUpdate(productId, {
+                ratings: {
+                    average: Math.round(stats[0].avgRating * 10) / 10, // Round to 1 decimal
+                    count: stats[0].nRating
+                }
+            });
+        } else {
+            await Product.findByIdAndUpdate(productId, {
+                ratings: { average: 0, count: 0 }
+            });
         }
     }
 }

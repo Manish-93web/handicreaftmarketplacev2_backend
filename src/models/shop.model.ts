@@ -18,6 +18,16 @@ export interface IShop extends Document {
         returnPolicy?: string;
         shippingPolicy?: string;
     };
+    vacationMode: {
+        isActive: boolean;
+        startDate?: Date;
+        endDate?: Date;
+        message?: string;
+    };
+    performanceScore: number;
+    lateShipmentCount: number;
+    subscriptionPlan: 'basic' | 'pro' | 'premium';
+    commissionOverride?: number;
     isActive: boolean;
     createdAt: Date;
     updatedAt: Date;
@@ -45,6 +55,20 @@ const ShopSchema: Schema = new Schema({
         returnPolicy: { type: String },
         shippingPolicy: { type: String }
     },
+    vacationMode: {
+        isActive: { type: Boolean, default: false },
+        startDate: { type: Date },
+        endDate: { type: Date },
+        message: { type: String }
+    },
+    performanceScore: { type: Number, default: 0 },
+    lateShipmentCount: { type: Number, default: 0 },
+    subscriptionPlan: {
+        type: String,
+        enum: ['basic', 'pro', 'premium'],
+        default: 'basic'
+    },
+    commissionOverride: { type: Number },
     isActive: { type: Boolean, default: true }
 }, { timestamps: true });
 

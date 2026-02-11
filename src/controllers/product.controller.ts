@@ -3,6 +3,8 @@ import { Product } from '../models/product.model';
 import { Shop } from '../models/shop.model';
 import { ApiResponse } from '../utils/ApiResponse';
 import { AppError } from '../utils/AppError';
+import { RecommendationController } from './recommendation.controller';
+import { CurrencyService } from '../services/currency.service';
 
 export class ProductController {
 
@@ -13,7 +15,7 @@ export class ProductController {
                 throw new AppError('Shop not found for this user', 404);
             }
 
-            const { title, price, category, status, ...otherData } = req.body;
+            const { title, price, category, status, moq, bulkPricing, isPersonalizable, personalizationFields, ...otherData } = req.body;
 
             // Auto-generate slug
             const slug = title.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '') + '-' + Date.now();
@@ -29,8 +31,12 @@ export class ProductController {
                 shopId: shop._id,
                 slug,
                 sku,
+                moq: moq || 1,
+                bulkPricing,
+                isPersonalizable,
+                personalizationFields,
                 approvalStatus: status === 'submit' ? 'pending' : 'draft',
-                isPublished: status === 'submit' ? false : false // Admin must approve
+                isPublished: false // Admin must approve
             });
 
             return ApiResponse.success(res, 201, 'Product created successfully', { product });
@@ -80,6 +86,13 @@ export class ProductController {
                 if (maxPrice) filter.price.$lte = Number(maxPrice);
             }
 
+            // Exclude shops in vacation mode
+            const vacationShops = await Shop.find({ 'vacationMode.isActive': true }).select('_id');
+            const vacationShopIds = vacationShops.map(s => s._id);
+            if (vacationShopIds.length > 0) {
+                filter.shopId = { ...filter.shopId, $nin: vacationShopIds };
+            }
+
             const skip = (Number(page) - 1) * Number(limit);
 
             let query = Product.find(filter)
@@ -91,11 +104,21 @@ export class ProductController {
             else if (sort === 'price-high') query = query.sort('-price');
             else query = query.sort('-createdAt');
 
-            const products = await query.skip(skip).limit(Number(limit));
+            const products = await query.skip(skip).limit(Number(limit)).lean();
             const total = await Product.countDocuments(filter);
 
+            const { currency, locale } = req.context;
+            const formattedProducts = products.map((p: any) => {
+                let displayPrice = CurrencyService.formatPrice(p.price, 'INR', locale);
+                if (currency !== 'INR') {
+                    const converted = CurrencyService.convertPrice(p.price, currency);
+                    displayPrice = CurrencyService.formatPrice(converted, currency, locale);
+                }
+                return { ...p, displayPrice, currency };
+            });
+
             return ApiResponse.success(res, 200, 'Products fetched successfully', {
-                products,
+                products: formattedProducts,
                 pagination: {
                     total,
                     page: Number(page),
@@ -119,7 +142,63 @@ export class ProductController {
                 throw new AppError('Product not found', 404);
             }
 
-            return ApiResponse.success(res, 200, 'Product details fetched', { product });
+            // Log View Activity (Fire & Forget)
+            if (req.user) {
+                RecommendationController.logActivity(req.user._id.toString(), product._id.toString(), 'view');
+            }
+
+            const { currency, locale } = req.context;
+            let displayPrice = CurrencyService.formatPrice(product.price, 'INR', locale);
+            let convertedPrice = product.price;
+
+            if (currency !== 'INR') {
+                convertedPrice = CurrencyService.convertPrice(product.price, currency);
+                displayPrice = CurrencyService.formatPrice(convertedPrice, currency, locale);
+            }
+
+            const responseProduct = {
+                ...(product.toObject()),
+                displayPrice,
+                currency
+            };
+
+            return ApiResponse.success(res, 200, 'Product details fetched', { product: responseProduct });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    static async getSearchAggregations(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { search, category } = req.query;
+            const matchStage: any = { isPublished: true };
+
+            if (search) {
+                matchStage.$text = { $search: search as string };
+            }
+            if (category) {
+                matchStage.category = category;
+            }
+
+            // Aggregation Pipeline
+            const aggregations = await Product.aggregate([
+                { $match: matchStage },
+                {
+                    $facet: {
+                        categories: [
+                            { $group: { _id: '$category', count: { $sum: 1 } } },
+                            { $lookup: { from: 'categories', localField: '_id', foreignField: '_id', as: 'details' } },
+                            { $project: { _id: 1, count: 1, name: { $arrayElemAt: ['$details.name', 0] }, slug: { $arrayElemAt: ['$details.slug', 0] } } }
+                        ],
+                        priceRange: [
+                            { $group: { _id: null, min: { $min: '$price' }, max: { $max: '$price' } } }
+                        ],
+                        // Brands/Shops could be added here
+                    }
+                }
+            ]);
+
+            return ApiResponse.success(res, 200, 'Search aggregations fetched', { aggregations: aggregations[0] });
         } catch (error) {
             next(error);
         }
@@ -133,6 +212,35 @@ export class ProductController {
             }
             const products = await Product.find({ shopId: shop._id }).sort('-createdAt');
             return ApiResponse.success(res, 200, 'My products fetched', { products });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    // Admin: Approve or Reject Product
+    static async updateProductStatus(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            const { status, reason } = req.body; // status: 'approved' | 'rejected'
+
+            if (!['approved', 'rejected'].includes(status)) {
+                throw new AppError('Invalid status', 400);
+            }
+
+            const product = await Product.findByIdAndUpdate(
+                id,
+                {
+                    approvalStatus: status,
+                    isPublished: status === 'approved' // Auto-publish on approval? Or let seller decide? Let's just allow seller to publish now.
+                    // Actually, let's keep isPublished separate so seller controls visibility even after approval.
+                    // But for simplicity in Phase 4, if approved -> logic usually allows seller to toggle isPublished.
+                },
+                { new: true }
+            );
+
+            if (!product) throw new AppError('Product not found', 404);
+
+            return ApiResponse.success(res, 200, `Product status updated to ${status}`, { product });
         } catch (error) {
             next(error);
         }

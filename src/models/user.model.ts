@@ -10,6 +10,12 @@ export interface IUser extends Document {
     isVerified: boolean;
     walletBalance: number;
     avatar?: string;
+    privacyPreferences?: {
+        marketingEmails: boolean;
+        cookieConsent: boolean;
+        analytics: boolean;
+    };
+    deletionScheduledAt?: Date;
     createdAt: Date;
     updatedAt: Date;
     comparePassword(candidatePassword: string): Promise<boolean>;
@@ -29,6 +35,12 @@ const UserSchema: Schema = new Schema(
         isVerified: { type: Boolean, default: false },
         walletBalance: { type: Number, default: 0 },
         avatar: { type: String },
+        privacyPreferences: {
+            marketingEmails: { type: Boolean, default: false },
+            cookieConsent: { type: Boolean, default: false },
+            analytics: { type: Boolean, default: false },
+        },
+        deletionScheduledAt: { type: Date },
     },
     { timestamps: true }
 );

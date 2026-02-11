@@ -29,5 +29,14 @@ export const csrfProtection = (req: Request, res: Response, next: NextFunction) 
         });
     }
 
+    // CSRF Token Rotation: Generate a new token for the next request
+    const newToken = crypto.randomBytes(32).toString('hex');
+    res.cookie('XSRF-TOKEN', newToken, {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        path: '/'
+    });
+
     next();
 };

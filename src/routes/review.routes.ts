@@ -5,6 +5,9 @@ import { protect } from '../middlewares/auth.middleware';
 const router = Router();
 
 router.get('/:productId', ReviewController.getProductReviews);
-router.post('/', protect, ReviewController.submitReview);
+
+router.use(protect);
+router.post('/', ReviewController.submitReview);
+// router.delete('/:id', restrictTo('admin', 'user'), ReviewController.deleteReview); // TODO: Implement delete
 
 export default router;

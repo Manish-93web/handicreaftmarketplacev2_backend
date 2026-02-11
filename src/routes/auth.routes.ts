@@ -1,18 +1,19 @@
 import { Router } from 'express';
 import { AuthController } from '../controllers/auth.controller';
 import { protect } from '../middlewares/auth.middleware';
+import { logAudit } from '../middlewares/audit.middleware';
 
 const router = Router();
 
-router.post('/register', AuthController.register);
-router.post('/login', AuthController.login);
+router.post('/register', logAudit('user_registration', 'auth'), AuthController.register);
+router.post('/login', logAudit('user_login', 'auth'), AuthController.login);
 router.post('/send-otp', AuthController.sendOTP);
 router.post('/verify-otp', AuthController.verifyOTP);
 router.post('/forgot-password', AuthController.forgotPassword);
 router.post('/reset-password', AuthController.resetPassword);
 router.post('/google-login', AuthController.googleLogin);
-router.post('/refresh-token', AuthController.refreshToken);
-router.post('/logout', AuthController.logout);
+router.post('/refresh-token', logAudit('token_refresh', 'auth'), AuthController.refreshToken);
+router.post('/logout', logAudit('user_logout', 'auth'), AuthController.logout);
 
 // Session Management (Protected)
 router.get('/sessions', protect, AuthController.getActiveSessions);

@@ -10,5 +10,7 @@ router.post('/', ShopController.createShop);
 router.get('/me', ShopController.getMyShop);
 router.patch('/me', ShopController.updateShop);
 router.patch('/me/kyc', ShopController.updateKYC);
+router.get('/me/metrics', ShopController.getPerformanceMetrics);
+router.patch('/me/vacation', ShopController.toggleVacationMode);
 
 export default router;

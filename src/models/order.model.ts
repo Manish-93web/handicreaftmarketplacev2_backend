@@ -32,6 +32,9 @@ export interface ISubOrder extends mongoose.Document {
     status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
     trackingNumber?: string;
     carrier?: string;
+    returnReason?: string;
+    returnStatus: 'none' | 'requested' | 'approved' | 'rejected' | 'refunded';
+    returnEvidence?: string[];
     createdAt: Date;
     updatedAt: Date;
 }
@@ -75,7 +78,14 @@ const SubOrderSchema = new mongoose.Schema({
         default: 'pending'
     },
     trackingNumber: { type: String, default: null },
-    carrier: { type: String, default: null }
+    carrier: { type: String, default: null },
+    returnReason: { type: String, default: null },
+    returnStatus: {
+        type: String,
+        enum: ['none', 'requested', 'approved', 'rejected', 'refunded'],
+        default: 'none'
+    },
+    returnEvidence: [{ type: String }] // Array of URLs
 }, { timestamps: true });
 
 export const Order = mongoose.model<IOrder>('Order', OrderSchema);
