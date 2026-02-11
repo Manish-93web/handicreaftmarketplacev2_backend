@@ -13,7 +13,10 @@ export const connectRedis = async () => {
         await redisClient.connect();
     } catch (err) {
         logger.error('Could not connect to Redis', err);
-        process.exit(1);
+        if (process.env.NODE_ENV === 'production') {
+            process.exit(1);
+        }
+        logger.warn('Proceeding without Redis (some features like caching and notifications may be affected)');
     }
 };
 
