@@ -22,11 +22,14 @@ export interface ISubOrder extends mongoose.Document {
     orderId: mongoose.Types.ObjectId;
     shopId: mongoose.Types.ObjectId;
     items: {
+        listingId: mongoose.Types.ObjectId;
         productId: mongoose.Types.ObjectId;
         title: string;
         price: number;
         quantity: number;
         image: string;
+        status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+        returnStatus: 'none' | 'requested' | 'approved' | 'rejected' | 'refunded';
     }[];
     subTotal: number;
     status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
@@ -65,11 +68,22 @@ const SubOrderSchema = new mongoose.Schema({
     orderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', required: true },
     shopId: { type: mongoose.Schema.Types.ObjectId, ref: 'Shop', required: true },
     items: [{
+        listingId: { type: mongoose.Schema.Types.ObjectId, ref: 'SellerListing', required: true },
         productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
         title: String,
         price: Number,
         quantity: Number,
-        image: String
+        image: String,
+        status: {
+            type: String,
+            enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
+            default: 'pending'
+        },
+        returnStatus: {
+            type: String,
+            enum: ['none', 'requested', 'approved', 'rejected', 'refunded'],
+            default: 'none'
+        }
     }],
     subTotal: { type: Number, required: true },
     status: {

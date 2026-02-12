@@ -10,6 +10,7 @@ router.get('/categories', CategoryController.getCategories);
 router.post('/categories', protect, restrictTo('admin'), CategoryController.createCategory);
 
 // Products
+router.get('/suggestions', ProductController.getSuggestions);
 router.get('/aggregations', ProductController.getSearchAggregations);
 router.get('/', ProductController.getProducts); // Public listing
 router.get('/:slug', ProductController.getProductBySlug);

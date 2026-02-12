@@ -50,10 +50,39 @@ export class WalletController {
         });
     }
 
-    static async processRefund(subOrderId: string, amount: number, sellerId: string, buyerId: string) {
-        // ... (existing code) ...
-        // I will just append the new methods after processRefund, not verify existing code here to save tokens in prompt
-        // functionality logic is in previous step
+    static async refundToBuyerWallet(subOrderId: string, amount: number, buyerId: string, sellerId: string, reason: string) {
+        let buyerWallet = await Wallet.findOne({ userId: buyerId });
+        if (!buyerWallet) buyerWallet = await Wallet.create({ userId: buyerId });
+
+        buyerWallet.balance += amount;
+        await (buyerWallet as any).save();
+
+        await Transaction.create({
+            walletId: buyerWallet._id,
+            amount: amount,
+            type: 'credit',
+            status: 'completed',
+            description: `Refund for order ${subOrderId}: ${reason}`,
+            subOrderId
+        });
+
+        let sellerWallet = await Wallet.findOne({ userId: sellerId });
+        if (sellerWallet) {
+            const commission = amount * 0.10;
+            const netAmount = amount - commission;
+            if (sellerWallet.pendingBalance >= netAmount) {
+                sellerWallet.pendingBalance -= netAmount;
+                await (sellerWallet as any).save();
+                await Transaction.create({
+                    walletId: sellerWallet._id,
+                    amount: netAmount,
+                    type: 'debit',
+                    status: 'completed',
+                    description: `Reversal for refund in order ${subOrderId}`,
+                    subOrderId
+                });
+            }
+        }
     }
 
     // Seller: Request Payout

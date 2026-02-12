@@ -3,10 +3,9 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface ICart extends Document {
     userId: mongoose.Types.ObjectId;
     items: {
-        productId: mongoose.Types.ObjectId;
-        variantId?: string;
+        listingId: mongoose.Types.ObjectId;
+        variantId?: string; // Still useful if we have variant listings
         quantity: number;
-        shopId: mongoose.Types.ObjectId; // Denormalized for easier split-cart display
     }[];
     updatedAt: Date;
 }
@@ -14,10 +13,9 @@ export interface ICart extends Document {
 const CartSchema: Schema = new Schema({
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
     items: [{
-        productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+        listingId: { type: Schema.Types.ObjectId, ref: 'SellerListing', required: true },
         variantId: { type: String },
-        quantity: { type: Number, default: 1, min: 1 },
-        shopId: { type: Schema.Types.ObjectId, ref: 'Shop', required: true }
+        quantity: { type: Number, default: 1, min: 1 }
     }]
 }, { timestamps: true });
 

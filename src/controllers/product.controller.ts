@@ -1,8 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import { Product } from '../models/product.model';
 import { Shop } from '../models/shop.model';
+import { SellerListing } from '../models/sellerListing.model';
+import { BuyBoxService } from '../services/buybox.service';
 import { ApiResponse } from '../utils/ApiResponse';
 import { AppError } from '../utils/AppError';
+import mongoose from 'mongoose';
 import { RecommendationController } from './recommendation.controller';
 import { CurrencyService } from '../services/currency.service';
 
@@ -15,31 +18,54 @@ export class ProductController {
                 throw new AppError('Shop not found for this user', 404);
             }
 
-            const { title, price, category, status, moq, bulkPricing, isPersonalizable, personalizationFields, ...otherData } = req.body;
+            const {
+                title,
+                price,
+                salePrice,
+                stock,
+                sku,
+                category,
+                condition,
+                shippingSpeed,
+                status,
+                isPersonalizable,
+                personalizationFields,
+                ...otherData
+            } = req.body;
 
-            // Auto-generate slug
+            // 1. Create/Find Catalog Product
+            // In a real Amazon-scale system, we'd search for existing catalog items first.
+            // For now, we'll create a new one to keep logic simple.
             const slug = title.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '') + '-' + Date.now();
-
-            // Auto-generate SKU if not provided
-            const sku = req.body.sku || `SKU-${Date.now()}`;
 
             const product = await Product.create({
                 ...otherData,
                 title,
-                price,
                 category,
-                shopId: shop._id,
                 slug,
-                sku,
-                moq: moq || 1,
-                bulkPricing,
                 isPersonalizable,
                 personalizationFields,
                 approvalStatus: status === 'submit' ? 'pending' : 'draft',
-                isPublished: false // Admin must approve
+                isPublished: false
             });
 
-            return ApiResponse.success(res, 201, 'Product created successfully', { product });
+            // 2. Create Seller Listing
+            const listing = await SellerListing.create({
+                productId: product._id,
+                shopId: shop._id,
+                price,
+                salePrice,
+                sku: sku || `SKU-${Date.now()}`,
+                stock: stock || 0,
+                condition: condition || 'new',
+                shippingSpeed: shippingSpeed || 'standard',
+                isActive: true
+            });
+
+            // 3. Update Buy Box (Since it's the first listing, it'll win)
+            await BuyBoxService.updateBuyBox(product._id.toString());
+
+            return ApiResponse.success(res, 201, 'Product and Listing created successfully', { product, listing });
         } catch (error) {
             next(error);
         }
@@ -50,21 +76,34 @@ export class ProductController {
             const shop = await Shop.findOne({ sellerId: req.user?._id });
             if (!shop) throw new AppError('Shop not found', 404);
 
-            const { products } = req.body; // Expecting array of product objects
+            const { products } = req.body;
             if (!Array.isArray(products)) throw new AppError('Invalid products data', 400);
 
-            const count = products.length;
-            const importedProducts = products.map(p => ({
-                ...p,
-                shopId: shop._id,
-                slug: (p.title || 'product').toLowerCase().replace(/ /g, '-') + '-' + Math.random().toString(36).substring(7),
-                sku: p.sku || `SKU-${Math.random().toString(36).substring(7).toUpperCase()}`,
-                approvalStatus: 'draft'
-            }));
+            const results = [];
+            for (const p of products) {
+                const slug = (p.title || 'product').toLowerCase().replace(/ /g, '-') + '-' + Math.random().toString(36).substring(7);
 
-            await Product.insertMany(importedProducts);
+                const product = await Product.create({
+                    ...p,
+                    slug,
+                    approvalStatus: 'draft',
+                    isPublished: false
+                });
 
-            return ApiResponse.success(res, 201, `Imported ${count} products as drafts`, { count });
+                const listing = await SellerListing.create({
+                    productId: product._id,
+                    shopId: shop._id,
+                    price: p.price,
+                    sku: p.sku || `SKU-${Date.now()}`,
+                    stock: p.stock || 0,
+                    isActive: true
+                });
+
+                await BuyBoxService.updateBuyBox(product._id.toString());
+                results.push({ product, listing });
+            }
+
+            return ApiResponse.success(res, 201, `Imported ${results.length} products with listings`, { count: results.length });
         } catch (error) {
             next(error);
         }
@@ -72,49 +111,75 @@ export class ProductController {
 
     static async getProducts(req: Request, res: Response, next: NextFunction) {
         try {
-            const { shopId, category, search, minPrice, maxPrice, sort, page = 1, limit = 10 } = req.query;
-            const filter: any = { isPublished: true };
+            const { category, search, minPrice, maxPrice, sort, page = 1, limit = 10 } = req.query;
 
-            if (shopId) filter.shopId = shopId;
-            if (category) filter.category = category;
-            if (search) {
-                filter.$text = { $search: search as string };
-            }
+            // Build Match Stage for Product
+            const productMatch: any = { isPublished: true };
+            if (category) productMatch.category = new mongoose.Types.ObjectId(category as string);
+            if (search) productMatch.$text = { $search: search as string };
+
+            const pipeline: any[] = [
+                { $match: productMatch },
+                {
+                    $lookup: {
+                        from: 'sellerlistings',
+                        let: { productId: '$_id' },
+                        pipeline: [
+                            { $match: { $expr: { $eq: ['$productId', '$$productId'] }, isActive: true, stock: { $gt: 0 } } },
+                            { $sort: { isBuyBoxWinner: -1, price: 1 } },
+                            { $limit: 1 }
+                        ],
+                        as: 'buyBoxListing'
+                    }
+                },
+                { $unwind: { path: '$buyBoxListing', preserveNullAndEmptyArrays: false } }, // Only show products with at least one active listing
+                {
+                    $lookup: {
+                        from: 'categories',
+                        localField: 'category',
+                        foreignField: '_id',
+                        as: 'categoryInfo'
+                    }
+                },
+                { $unwind: '$categoryInfo' }
+            ];
+
+            // Filter by Price (from listing)
             if (minPrice || maxPrice) {
-                filter.price = {};
-                if (minPrice) filter.price.$gte = Number(minPrice);
-                if (maxPrice) filter.price.$lte = Number(maxPrice);
+                const priceMatch: any = {};
+                if (minPrice) priceMatch['buyBoxListing.price'] = { $gte: Number(minPrice) };
+                if (maxPrice) priceMatch['buyBoxListing.price'] = { ...priceMatch['buyBoxListing.price'], $lte: Number(maxPrice) };
+                pipeline.push({ $match: priceMatch });
             }
-
-            // Exclude shops in vacation mode
-            const vacationShops = await Shop.find({ 'vacationMode.isActive': true }).select('_id');
-            const vacationShopIds = vacationShops.map(s => s._id);
-            if (vacationShopIds.length > 0) {
-                filter.shopId = { ...filter.shopId, $nin: vacationShopIds };
-            }
-
-            const skip = (Number(page) - 1) * Number(limit);
-
-            let query = Product.find(filter)
-                .populate('category', 'name slug')
-                .populate('shopId', 'name slug isVerified');
 
             // Sorting
-            if (sort === 'price-low') query = query.sort('price');
-            else if (sort === 'price-high') query = query.sort('-price');
-            else query = query.sort('-createdAt');
+            if (sort === 'price-low') pipeline.push({ $sort: { 'buyBoxListing.price': 1 } });
+            else if (sort === 'price-high') pipeline.push({ $sort: { 'buyBoxListing.price': -1 } });
+            else pipeline.push({ $sort: { createdAt: -1 } });
 
-            const products = await query.skip(skip).limit(Number(limit)).lean();
-            const total = await Product.countDocuments(filter);
+            // Pagination
+            const skip = (Number(page) - 1) * Number(limit);
+            pipeline.push({ $skip: skip });
+            pipeline.push({ $limit: Number(limit) });
+
+            const products = await Product.aggregate(pipeline);
+            const total = await Product.countDocuments(productMatch); // Approx total
 
             const { currency, locale } = req.context;
             const formattedProducts = products.map((p: any) => {
-                let displayPrice = CurrencyService.formatPrice(p.price, 'INR', locale);
+                const price = p.buyBoxListing.price;
+                let displayPrice = CurrencyService.formatPrice(price, 'INR', locale);
                 if (currency !== 'INR') {
-                    const converted = CurrencyService.convertPrice(p.price, currency);
+                    const converted = CurrencyService.convertPrice(price, currency);
                     displayPrice = CurrencyService.formatPrice(converted, currency, locale);
                 }
-                return { ...p, displayPrice, currency };
+                return {
+                    ...p,
+                    price,
+                    displayPrice,
+                    currency,
+                    shopId: p.buyBoxListing.shopId // For backward compatibility in frontend if needed
+                };
             });
 
             return ApiResponse.success(res, 200, 'Products fetched successfully', {
@@ -135,31 +200,39 @@ export class ProductController {
         try {
             const { slug } = req.params;
             const product = await Product.findOne({ slug, isPublished: true })
-                .populate('category', 'name slug')
-                .populate('shopId', 'name slug description logo banner isVerified');
+                .populate('category', 'name slug');
 
             if (!product) {
                 throw new AppError('Product not found', 404);
             }
 
-            // Log View Activity (Fire & Forget)
+            // Fetch all listings for this product
+            const listings = await SellerListing.find({ productId: product._id, isActive: true })
+                .populate('shopId', 'name slug logo description isVerified performanceScore')
+                .sort({ isBuyBoxWinner: -1, price: 1 });
+
+            const buyBoxListing = listings.find(l => l.isBuyBoxWinner) || listings[0];
+
             if (req.user) {
                 RecommendationController.logActivity(req.user._id.toString(), product._id.toString(), 'view');
             }
 
             const { currency, locale } = req.context;
-            let displayPrice = CurrencyService.formatPrice(product.price, 'INR', locale);
-            let convertedPrice = product.price;
+            const price = buyBoxListing?.price || 0;
+            let displayPrice = CurrencyService.formatPrice(price, 'INR', locale);
 
-            if (currency !== 'INR') {
-                convertedPrice = CurrencyService.convertPrice(product.price, currency);
-                displayPrice = CurrencyService.formatPrice(convertedPrice, currency, locale);
+            if (currency !== 'INR' && price > 0) {
+                const converted = CurrencyService.convertPrice(price, currency);
+                displayPrice = CurrencyService.formatPrice(converted, currency, locale);
             }
 
             const responseProduct = {
                 ...(product.toObject()),
+                price,
                 displayPrice,
-                currency
+                currency,
+                listings,
+                buyBoxListing
             };
 
             return ApiResponse.success(res, 200, 'Product details fetched', { product: responseProduct });
@@ -210,8 +283,43 @@ export class ProductController {
             if (!shop) {
                 throw new AppError('Shop not found', 404);
             }
-            const products = await Product.find({ shopId: shop._id }).sort('-createdAt');
-            return ApiResponse.success(res, 200, 'My products fetched', { products });
+
+            // In the new model, "My Products" are my Listings
+            const listings = await SellerListing.find({ shopId: shop._id })
+                .populate('productId')
+                .sort('-createdAt');
+
+            return ApiResponse.success(res, 200, 'My products (listings) fetched', { listings });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    static async getSuggestions(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { q } = req.query;
+            if (!q || (q as string).length < 2) {
+                return ApiResponse.success(res, 200, 'Suggestions', { suggestions: [] });
+            }
+
+            const query = q as string;
+
+            // Search Products, Categories, and maybe Shops
+            const products = await Product.find({
+                title: { $regex: query, $options: 'i' },
+                isPublished: true
+            }).limit(5).select('title slug');
+
+            const categories = await mongoose.model('Category').find({
+                name: { $regex: query, $options: 'i' }
+            }).limit(3).select('name slug');
+
+            const suggestions = [
+                ...products.map(p => ({ type: 'product', text: p.title, slug: p.slug })),
+                ...categories.map(c => ({ type: 'category', text: c.name, slug: c.slug }))
+            ];
+
+            return ApiResponse.success(res, 200, 'Suggestions fetched', { suggestions });
         } catch (error) {
             next(error);
         }

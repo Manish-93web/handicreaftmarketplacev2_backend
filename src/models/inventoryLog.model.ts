@@ -2,6 +2,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IInventoryLog extends Document {
     productId: mongoose.Types.ObjectId;
+    listingId: mongoose.Types.ObjectId;
     sku: string;
     changeAmount: number; // Negative for reduction, positive for addition
     reason: string; // e.g., "Order Placement", "Restock", "Correction", "Return"
@@ -13,6 +14,7 @@ export interface IInventoryLog extends Document {
 
 const InventoryLogSchema: Schema = new Schema({
     productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+    listingId: { type: Schema.Types.ObjectId, ref: 'SellerListing', required: true },
     sku: { type: String, required: true },
     changeAmount: { type: Number, required: true },
     reason: { type: String, required: true },

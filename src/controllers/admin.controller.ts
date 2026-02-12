@@ -34,7 +34,11 @@ export class AdminController {
     // --- Seller/Shop Management & KYC ---
     static async getAllShops(req: Request, res: Response, next: NextFunction) {
         try {
-            const shops = await Shop.find().populate('sellerId', 'name email');
+            const { kycStatus } = req.query;
+            const filter: any = {};
+            if (kycStatus) filter.kycStatus = kycStatus;
+
+            const shops = await Shop.find(filter).populate('sellerId', 'name email').sort({ createdAt: -1 });
             return ApiResponse.success(res, 200, 'Shops fetched', { shops });
         } catch (error) {
             next(error);
@@ -48,10 +52,34 @@ export class AdminController {
             if (!shop) throw new AppError('Shop not found', 404);
 
             shop.isVerified = true;
-            // In a real app, we'd update a kycStatus field: shop.kycStatus = 'approved';
+            shop.kycStatus = 'approved';
+            shop.rejectionReason = undefined; // Clear any previous rejection
+            shop.rejectedAt = undefined;
             await (shop as any).save();
 
             return ApiResponse.success(res, 200, 'Shop KYC approved', { shop });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    static async rejectShopKYC(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { shopId } = req.params;
+            const { reason } = req.body;
+
+            if (!reason) throw new AppError('Rejection reason is required', 400);
+
+            const shop = await Shop.findById(shopId);
+            if (!shop) throw new AppError('Shop not found', 404);
+
+            shop.isVerified = false;
+            shop.kycStatus = 'rejected';
+            shop.rejectionReason = reason;
+            shop.rejectedAt = new Date();
+            await (shop as any).save();
+
+            return ApiResponse.success(res, 200, 'Shop KYC rejected', { shop });
         } catch (error) {
             next(error);
         }

@@ -3,10 +3,11 @@ import { Order, SubOrder } from '../models/order.model';
 import { Cart } from '../models/cart.model';
 import { Address } from '../models/address.model';
 import { Coupon } from '../models/coupon.model';
+import { SellerListing } from '../models/sellerListing.model';
+import { BuyBoxService } from '../services/buybox.service';
 import { ApiResponse } from '../utils/ApiResponse';
 import { AppError } from '../utils/AppError';
 import { WalletController } from './wallet.controller';
-import { Product } from '../models/product.model';
 import { InventoryLog } from '../models/inventoryLog.model';
 import { getInvoiceHTML } from '../utils/invoice.template';
 
@@ -16,9 +17,13 @@ export class OrderController {
         try {
             const { addressId, paymentMethod, couponCode } = req.body;
 
-            // 1. Get Cart
+            // 1. Get Cart with Listings Populated
             const cart = await Cart.findOne({ userId: req.user?._id })
-                .populate('items.productId');
+                .populate({
+                    path: 'items.listingId',
+                    populate: { path: 'productId' }
+                });
+
             if (!cart || cart.items.length === 0) {
                 throw new AppError('Cart is empty', 400);
             }
@@ -27,62 +32,67 @@ export class OrderController {
             const address = await Address.findById(addressId);
             if (!address) throw new AppError('Address not found', 404);
 
-            // 3. Calculate Totals
+            // 3. Calculate Totals & Group by Shop
             let totalAmount = 0;
             const shopGroups: any = {};
 
-            cart.items.forEach((item: any) => {
-                const itemPrice = item.productId.price;
+            for (const item of cart.items) {
+                const listing: any = item.listingId;
+                if (!listing) throw new AppError('One or more listings in cart are no longer active', 400);
+
+                const itemPrice = listing.price;
                 const itemTotal = itemPrice * item.quantity;
                 totalAmount += itemTotal;
 
-                if (!shopGroups[item.shopId]) {
-                    shopGroups[item.shopId] = { items: [], subTotal: 0 };
-                }
-                shopGroups[item.shopId].items.push({
-                    productId: item.productId._id,
-                    title: item.productId.title,
-                    price: itemPrice,
-                    quantity: item.quantity,
-                    image: item.productId.images[0]
-                });
-                shopGroups[item.shopId].subTotal += itemTotal;
-            });
+                const shopId = listing.shopId.toString();
 
-            // 3.1 Validate & Deduct Stock (Atomic Check)
-            for (const item of cart.items) {
-                const product = await Product.findById((item.productId as any)._id);
-                if (!product) throw new AppError(`Product ${(item.productId as any).title} not found`, 404);
-
-                if ((product as any).isTrackQuantity && !(product as any).isContinueSelling) {
-                    if ((product as any).stock < item.quantity) {
-                        throw new AppError(`Insufficient stock for ${(product as any).title}`, 400);
+                // 3.1 Stock Check & Deduction
+                if (listing.isTrackQuantity && !listing.isContinueSelling) {
+                    if (listing.stock < item.quantity) {
+                        throw new AppError(`Insufficient stock for ${listing.productId.title}`, 400);
                     }
                 }
 
-                // Deduct Stock
-                if ((product as any).isTrackQuantity) {
-                    (product as any).stock -= item.quantity;
-                    await product.save();
+                if (listing.isTrackQuantity) {
+                    listing.stock -= item.quantity;
+                    await listing.save();
 
                     // Log Inventory Change
                     await InventoryLog.create({
-                        productId: product._id,
-                        sku: (product as any).sku,
+                        productId: listing.productId._id,
+                        listingId: listing._id,
+                        sku: listing.sku,
                         changeAmount: -item.quantity,
                         reason: 'Order Placement',
-                        orderId: undefined, // Will be linked later if needed
                         userId: req.user?._id,
-                        currentStock: (product as any).stock
+                        currentStock: listing.stock
                     });
+
+                    // Trigger Buy Box Re-calculation if stock changed significantly or hit 0
+                    if (listing.stock === 0) {
+                        await BuyBoxService.updateBuyBox(listing.productId._id.toString());
+                    }
                 }
+
+                if (!shopGroups[shopId]) {
+                    shopGroups[shopId] = { items: [], subTotal: 0 };
+                }
+                shopGroups[shopId].items.push({
+                    listingId: listing._id,
+                    productId: listing.productId._id,
+                    title: listing.productId.title,
+                    price: itemPrice,
+                    quantity: item.quantity,
+                    image: listing.productId.images[0]
+                });
+                shopGroups[shopId].subTotal += itemTotal;
             }
 
             const taxAmount = Math.round(totalAmount * 0.12);
             let grandTotal = totalAmount + taxAmount;
             let couponDiscount = 0;
 
-            // Phase 11: Coupon Logic
+            // Coupon Logic
             if (couponCode) {
                 const coupon = await Coupon.findOne({ code: couponCode, isActive: true });
                 if (coupon && new Date() <= coupon.expiryDate && totalAmount >= coupon.minOrderAmount) {
@@ -110,7 +120,7 @@ export class OrderController {
                 grandTotal,
                 paymentMethod,
                 shippingAddress: address,
-                paymentStatus: 'pending' // Usually 'paid' after gateway success
+                paymentStatus: 'pending'
             });
 
             // 5. Create Sub Orders
@@ -124,7 +134,6 @@ export class OrderController {
                     status: 'pending'
                 });
                 subOrders.push(subOrder);
-
             }
 
             // 6. Clear Cart
@@ -228,15 +237,19 @@ export class OrderController {
         }
     }
 
-    // Buyer: Cancel Order
+    // Buyer: Cancel Order (Full or Partial)
     static async cancelOrder(req: Request, res: Response, next: NextFunction) {
         try {
             const { subOrderId } = req.params;
+            const { itemListingId } = req.body; // Optional for partial cancellation
+
             const userOrders = await Order.find({ buyerId: req.user?._id }).select('_id');
-            const subOrder = await SubOrder.findOne({
+            const subOrderArr = await SubOrder.find({
                 _id: subOrderId,
                 orderId: { $in: userOrders.map(o => o._id) }
-            });
+            }).populate('items.listingId');
+
+            const subOrder = subOrderArr[0];
 
             if (!subOrder) throw new AppError('Order not found', 404);
 
@@ -244,23 +257,90 @@ export class OrderController {
                 throw new AppError('Cannot cancel order at this stage', 400);
             }
 
-            (subOrder as any).status = 'cancelled';
+            const parentOrder = await Order.findById(subOrder.orderId);
+            if (!parentOrder) throw new AppError('Parent order not found', 404);
+
+            if (itemListingId) {
+                // Partial Cancellation
+                const item = subOrder.items.find((i: any) => i.listingId._id.toString() === itemListingId);
+                if (!item) throw new AppError('Item not found in this order', 404);
+                if (item.status === 'cancelled') throw new AppError('Item already cancelled', 400);
+
+                item.status = 'cancelled';
+
+                // Restore Inventory
+                const listing: any = item.listingId;
+                if (listing && listing.isTrackQuantity) {
+                    listing.stock += item.quantity;
+                    await listing.save();
+
+                    await InventoryLog.create({
+                        productId: listing.productId,
+                        listingId: listing._id,
+                        sku: listing.sku,
+                        changeAmount: item.quantity,
+                        reason: 'Partial Order Cancellation',
+                        userId: req.user?._id,
+                        currentStock: listing.stock
+                    });
+                }
+
+                // Trigger Refund if already paid
+                if (parentOrder.paymentStatus === 'paid') {
+                    await WalletController.refundToBuyerWallet(
+                        subOrder._id.toString(),
+                        item.price * item.quantity,
+                        parentOrder.buyerId.toString(),
+                        subOrder.shopId.toString(),
+                        `Partial Cancellation Refund: ${item.title}`
+                    );
+                }
+
+                // Check if all items are cancelled
+                const allCancelled = subOrder.items.every((i: any) => i.status === 'cancelled');
+                if (allCancelled) {
+                    subOrder.status = 'cancelled';
+                }
+            } else {
+                // Full Cancellation
+                subOrder.status = 'cancelled';
+                for (const item of subOrder.items) {
+                    if (item.status !== 'cancelled') {
+                        item.status = 'cancelled';
+
+                        // Restore Inventory
+                        const listing: any = item.listingId;
+                        if (listing && listing.isTrackQuantity) {
+                            listing.stock += item.quantity;
+                            await listing.save();
+                        }
+                    }
+                }
+
+                // Trigger Refund if already paid
+                if (parentOrder.paymentStatus === 'paid') {
+                    await WalletController.refundToBuyerWallet(
+                        subOrder._id.toString(),
+                        subOrder.subTotal,
+                        parentOrder.buyerId.toString(),
+                        subOrder.shopId.toString(),
+                        'Full Order Cancellation Refund'
+                    );
+                }
+            }
+
             await subOrder.save();
-
-            // Logic to refund to wallet if already paid could go here
-            // For now, assuming COD or manual refund process for cancellations during 'processing'
-
-            return ApiResponse.success(res, 200, 'Order cancelled successfully', { subOrder });
+            return ApiResponse.success(res, 200, 'Order/Item cancelled successfully', { subOrder });
         } catch (error) {
             next(error);
         }
     }
 
-    // Buyer: Request Return
+    // Buyer: Request Return (Full or Partial)
     static async requestReturn(req: Request, res: Response, next: NextFunction) {
         try {
             const { subOrderId } = req.params;
-            const { reason, evidence } = req.body;
+            const { reason, evidence, itemListingId } = req.body;
 
             const userOrders = await Order.find({ buyerId: req.user?._id }).select('_id');
             const subOrder = await SubOrder.findOne({
@@ -274,55 +354,99 @@ export class OrderController {
                 throw new AppError('Can only request return for delivered orders', 400);
             }
 
-            (subOrder as any).returnStatus = 'requested';
-            (subOrder as any).returnReason = reason;
-            (subOrder as any).returnEvidence = evidence; // Array of image URLs
-            await subOrder.save();
+            if (itemListingId) {
+                // Partial Return
+                const item = subOrder.items.find((i: any) => i.listingId.toString() === itemListingId);
+                if (!item) throw new AppError('Item not found in this order', 404);
+                if (item.returnStatus !== 'none') throw new AppError('Return already requested for this item', 400);
 
+                item.returnStatus = 'requested';
+
+                // For simplified logic, we also update sub-order level flags
+                subOrder.returnStatus = 'requested';
+                subOrder.returnReason = reason;
+                subOrder.returnEvidence = evidence;
+            } else {
+                // Full Return
+                subOrder.returnStatus = 'requested';
+                subOrder.returnReason = reason;
+                subOrder.returnEvidence = evidence;
+                for (const item of subOrder.items) {
+                    item.returnStatus = 'requested';
+                }
+            }
+
+            await subOrder.save();
             return ApiResponse.success(res, 200, 'Return requested successfully', { subOrder });
         } catch (error) {
             next(error);
         }
     }
 
-    // Seller/Admin: Process Return
+    // Seller/Admin: Process Return (Full or Partial)
     static async processReturn(req: Request, res: Response, next: NextFunction) {
         try {
             const { subOrderId } = req.params;
-            const { action } = req.body; // 'approve' | 'reject'
+            const { action, itemListingId } = req.body; // action: 'approve' | 'reject'
 
             const subOrder = await SubOrder.findById(subOrderId);
             if (!subOrder) throw new AppError('Order not found', 404);
 
-            if ((subOrder as any).returnStatus !== 'requested') {
-                throw new AppError('No return requested for this order', 400);
-            }
+            const parentOrder = await Order.findById(subOrder.orderId);
+            if (!parentOrder) throw new AppError('Parent order not found', 404);
 
-            if (action === 'approve') {
-                (subOrder as any).returnStatus = 'approved';
-                (subOrder as any).status = 'cancelled'; // Or 'returned' if we had that status
-                await subOrder.save();
+            if (itemListingId) {
+                // Partial Process
+                const item = subOrder.items.find((i: any) => i.listingId.toString() === itemListingId);
+                if (!item) throw new AppError('Item not found', 404);
+                if (item.returnStatus !== 'requested') throw new AppError('No return requested for this item', 400);
 
-                // Trigger Refund via Wallet
-                const parentOrder = await Order.findById(subOrder.orderId);
-                if (parentOrder) {
-                    await WalletController.processRefund(
-                        subOrder._id.toString(),
-                        subOrder.subTotal,
-                        subOrder.shopId.toString(),
-                        parentOrder.buyerId.toString()
-                    );
-                    (subOrder as any).returnStatus = 'refunded';
-                    await subOrder.save();
+                if (action === 'approve') {
+                    item.returnStatus = 'refunded';
+                    item.status = 'cancelled';
+
+                    // Trigger Refund for this item
+                    if (parentOrder.paymentStatus === 'paid') {
+                        await WalletController.refundToBuyerWallet(
+                            subOrder._id.toString(),
+                            item.price * item.quantity,
+                            parentOrder.buyerId.toString(),
+                            subOrder.shopId.toString(),
+                            `Partial Return Approved: ${item.title}`
+                        );
+                    }
+                } else {
+                    item.returnStatus = 'rejected';
                 }
-
-            } else if (action === 'reject') {
-                (subOrder as any).returnStatus = 'rejected';
-                await subOrder.save();
             } else {
-                throw new AppError('Invalid action', 400);
+                // Full Process
+                if (action === 'approve') {
+                    subOrder.returnStatus = 'refunded';
+                    subOrder.status = 'cancelled';
+                    for (const item of subOrder.items) {
+                        item.returnStatus = 'refunded';
+                        item.status = 'cancelled';
+                    }
+
+                    // Trigger Refund for full sub-order
+                    if (parentOrder.paymentStatus === 'paid') {
+                        await WalletController.refundToBuyerWallet(
+                            subOrder._id.toString(),
+                            subOrder.subTotal,
+                            parentOrder.buyerId.toString(),
+                            subOrder.shopId.toString(),
+                            'Full Return Approved'
+                        );
+                    }
+                } else {
+                    subOrder.returnStatus = 'rejected';
+                    for (const item of subOrder.items) {
+                        item.returnStatus = 'rejected';
+                    }
+                }
             }
 
+            await subOrder.save();
             return ApiResponse.success(res, 200, `Return request ${action}ed`, { subOrder });
         } catch (error) {
             next(error);

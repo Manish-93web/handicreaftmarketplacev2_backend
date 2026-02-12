@@ -10,6 +10,8 @@ export interface IShop extends Document {
     address?: string;
     isVerified: boolean;
     kycStatus: 'pending' | 'approved' | 'rejected';
+    rejectionReason?: string;
+    rejectedAt?: Date;
     kycDocuments: {
         documentType: string;
         url: string;
@@ -27,6 +29,17 @@ export interface IShop extends Document {
     performanceScore: number;
     lateShipmentCount: number;
     subscriptionPlan: 'basic' | 'pro' | 'premium';
+    businessDetails?: {
+        pan: string;
+        gstin?: string;
+        address: string;
+    };
+    bankDetails?: {
+        accountHolderName: string;
+        accountNumber: string;
+        ifscCode: string;
+        bankName: string;
+    };
     commissionOverride?: number;
     isActive: boolean;
     createdAt: Date;
@@ -47,6 +60,8 @@ const ShopSchema: Schema = new Schema({
         enum: ['pending', 'approved', 'rejected'],
         default: 'pending'
     },
+    rejectionReason: { type: String },
+    rejectedAt: { type: Date },
     kycDocuments: [{
         documentType: { type: String },
         url: { type: String }
@@ -69,6 +84,17 @@ const ShopSchema: Schema = new Schema({
         default: 'basic'
     },
     commissionOverride: { type: Number },
+    businessDetails: {
+        pan: { type: String },
+        gstin: { type: String },
+        address: { type: String }
+    },
+    bankDetails: {
+        accountHolderName: { type: String },
+        accountNumber: { type: String },
+        ifscCode: { type: String },
+        bankName: { type: String }
+    },
     isActive: { type: Boolean, default: true }
 }, { timestamps: true });
 

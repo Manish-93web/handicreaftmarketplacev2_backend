@@ -1,0 +1,17 @@
+Starting Cart & Checkout Verification...
+CSRF Token Initialized: b70493b3465f7d632a80993138f3d424462d2fe7ffab074edd3911aa120d3146
+Buyer Logged In: undefined
+No products found. Cannot test add to cart properly without seeding.
+SKIPPING CART TEST DUE TO NO PRODUCTS
+Starting Cart & Checkout Verification (with Seeding)...
+CSRF Token Initialized: cc01fb942580ca47616c0fdaa20bf753ccc0aa3e352f3a5ec0f0466f0b760eca
+Seller Logged In: undefined
+Shop Created: No
+Starting Cart & Checkout Verification (with Seeding)...
+CSRF Token Initialized: e1046edb5b0d7ec8242fe352c9f226973382246206d74487eb43315089763585
+Seller Logged In: undefined
+Starting Cart & Checkout Verification (with Seeding)...
+CSRF Token Initialized: 568ce0fdc8f27554b3b04578a291c557ec448e23faa8692bd1536d4a003599fb
+Seller Login Status: 429
+Seller Login Failure: "Too many auth attempts from this IP, please try again after an hour"
+Starting Cart & Checkout Verification (with Seeding)...

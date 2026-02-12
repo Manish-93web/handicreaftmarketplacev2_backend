@@ -1,17 +1,10 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IProduct extends Document {
-    shopId: mongoose.Types.ObjectId;
     title: string;
     slug: string;
     description: string;
     shortDescription?: string;
-    price: number;
-    salePrice?: number;
-    sku: string;
-    stock: number;
-    isTrackQuantity: boolean;
-    isContinueSelling: boolean; // Continue selling when out of stock
 
     category: mongoose.Types.ObjectId;
     subCategory?: mongoose.Types.ObjectId;
@@ -22,14 +15,14 @@ export interface IProduct extends Document {
 
     productType: 'simple' | 'variable' | 'digital';
     attributes?: {
-        name: string; // e.g., Color
-        options: string[]; // e.g., [Red, Blue]
+        name: string;
+        options: string[];
     }[];
     variants?: {
         sku: string;
         price: number;
         stock: number;
-        attributes: Record<string, string>; // e.g., { Color: Red, Size: M }
+        attributes: Record<string, string>;
         image?: string;
     }[];
 
@@ -42,11 +35,7 @@ export interface IProduct extends Document {
     isPublished: boolean;
     isFeatured: boolean;
     isHandmade: boolean;
-    moq: number;
-    bulkPricing?: {
-        minQty: number;
-        price: number;
-    }[];
+
     isPersonalizable: boolean;
     personalizationFields?: {
         name: string;
@@ -69,18 +58,10 @@ export interface IProduct extends Document {
 }
 
 const ProductSchema: Schema = new Schema({
-    shopId: { type: Schema.Types.ObjectId, ref: 'Shop', required: true },
     title: { type: String, required: true, trim: true },
     slug: { type: String, required: true, unique: true, lowercase: true },
     description: { type: String, required: true },
     shortDescription: { type: String },
-
-    price: { type: Number, required: true },
-    salePrice: { type: Number },
-    sku: { type: String, required: true, unique: true },
-    stock: { type: Number, default: 0 },
-    isTrackQuantity: { type: Boolean, default: true },
-    isContinueSelling: { type: Boolean, default: false },
 
     category: { type: Schema.Types.ObjectId, ref: 'Category', required: true },
     subCategory: { type: Schema.Types.ObjectId, ref: 'Category' },
@@ -118,11 +99,7 @@ const ProductSchema: Schema = new Schema({
     isPublished: { type: Boolean, default: false },
     isFeatured: { type: Boolean, default: false },
     isHandmade: { type: Boolean, default: true },
-    moq: { type: Number, default: 1 },
-    bulkPricing: [{
-        minQty: Number,
-        price: Number
-    }],
+
     isPersonalizable: { type: Boolean, default: false },
     personalizationFields: [{
         name: String,
@@ -146,8 +123,6 @@ const ProductSchema: Schema = new Schema({
 }, { timestamps: true });
 
 ProductSchema.index({ title: 'text', description: 'text', tags: 'text' });
-ProductSchema.index({ shopId: 1 });
 ProductSchema.index({ category: 1 });
-ProductSchema.index({ price: 1 });
 
 export const Product = mongoose.model<IProduct>('Product', ProductSchema);

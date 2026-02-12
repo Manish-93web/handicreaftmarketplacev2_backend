@@ -53,13 +53,13 @@ export class ShopController {
 
     static async updateShop(req: Request, res: Response, next: NextFunction) {
         try {
-            const { policies, ...otherData } = req.body;
+            const { policies, businessDetails, bankDetails, ...otherData } = req.body;
             const updatePayload: any = { ...otherData };
 
-            // Handle nested policies if provided
-            if (policies) {
-                updatePayload.policies = policies;
-            }
+            // Handle nested details if provided
+            if (policies) updatePayload.policies = policies;
+            if (businessDetails) updatePayload.businessDetails = businessDetails;
+            if (bankDetails) updatePayload.bankDetails = bankDetails;
 
             const shop = await Shop.findOneAndUpdate(
                 { sellerId: req.user?._id },

@@ -3,7 +3,10 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { json, urlencoded } from 'express';
 
+import crypto from 'crypto';
+
 const app: Express = express();
+
 
 import authRoutes from './routes/auth.routes';
 import cookieParser from 'cookie-parser';
@@ -37,7 +40,7 @@ app.use(helmet({
             scriptSrc: ["'self'", "'unsafe-inline'"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             imgSrc: ["'self'", "data:", "https://res.cloudinary.com"], // Allow Cloudinary images
-            connectSrc: ["'self'"],
+            connectSrc: ["'self'", "http://localhost:5000", "http://127.0.0.1:5000"],
             fontSrc: ["'self'", "https://fonts.gstatic.com"],
             objectSrc: ["'none'"],
             upgradeInsecureRequests: [],
@@ -59,14 +62,27 @@ const authLimiter = rateLimit({
     message: 'Too many auth attempts from this IP, please try again after an hour'
 });
 
-app.use('/api', limiter);
-app.use('/api/v1/auth/login', authLimiter);
-app.use('/api/v1/auth/register', authLimiter);
+// app.use('/api', limiter);
+// app.use('/api/v1/auth/login', authLimiter);
+// app.use('/api/v1/auth/register', authLimiter);
 
 app.use(cors({
-    origin: 'http://localhost:3000', // Allow frontend
-    credentials: true
+    origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-xsrf-token', 'X-Currency', 'Accept-Language']
 }));
+
+// CSRF Handshake Initializer - must be after CORS but before CSRF Protection usage
+app.get('/api/v1/csrf-init', (req: Request, res: Response) => {
+    const token = crypto.randomBytes(32).toString('hex');
+    res.cookie('XSRF-TOKEN', token, {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/'
+    });
+    res.status(200).json({ status: 'OK', message: 'CSRF token initialized' });
+});
 app.use(json());
 app.use(urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -106,9 +122,12 @@ import { AppError } from './utils/AppError';
 app.get('/api/health', (req: Request, res: Response) => {
     res.status(200).json({ status: 'OK', message: 'Backend is running' });
 });
+app.get('/api/v1/health', (req: Request, res: Response) => {
+    res.status(200).json({ status: 'OK', message: 'Backend v1 is running' });
+});
 
 // Handle undefined routes
-app.all('*', (req: Request, res: Response, next: NextFunction) => {
+app.all(/.*/, (req: Request, res: Response, next: NextFunction) => {
     next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
 });
 
