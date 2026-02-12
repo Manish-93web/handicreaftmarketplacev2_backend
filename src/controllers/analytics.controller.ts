@@ -41,12 +41,16 @@ export class AnalyticsController {
             });
 
             return ApiResponse.success(res, 200, 'Admin analytics fetched', {
-                gmv,
-                platformRevenue,
-                totalOrders,
-                totalUsers,
-                totalSellers,
-                activeUserCount: activeUsers.length
+                financials: {
+                    totalGMV: gmv,
+                    totalCommission: platformRevenue,
+                    totalOrders: totalOrders
+                },
+                users: {
+                    totalUsers: totalUsers,
+                    totalSellers: totalSellers,
+                    activeUsers: activeUsers.length
+                }
             });
         } catch (error) {
             next(error);
