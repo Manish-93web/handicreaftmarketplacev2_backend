@@ -4,6 +4,7 @@ import { Wishlist } from '../models/wishlist.model';
 import { SellerListing } from '../models/sellerListing.model';
 import { ApiResponse } from '../utils/ApiResponse';
 import { AppError } from '../utils/AppError';
+import { BuyBoxService } from '../services/buybox.service';
 
 export class WishlistController {
     private static async getPopulated(userId: any) {
@@ -33,6 +34,7 @@ export class WishlistController {
     static async addToWishlist(req: Request, res: Response, next: NextFunction) {
         try {
             const { productId, listingId } = req.body;
+            console.log(`[Wishlist] addToWishlist request: productId=${productId}, listingId=${listingId}`);
 
             if (productId && !mongoose.Types.ObjectId.isValid(productId as string)) {
                 throw new AppError('Invalid Product ID format', 400);
@@ -45,10 +47,14 @@ export class WishlistController {
 
             // If only productId is provided, find the Buy Box winner
             if (!finalListingId && productId) {
-                const { BuyBoxService } = require('../services/buybox.service');
+                console.log(`[Wishlist] Resolving Buy Box for product: ${productId}`);
                 const winner = await BuyBoxService.getBuyBoxWinner(productId as string);
-                if (!winner) throw new AppError(`No active listings found for product: ${productId}`, 404);
+                if (!winner) {
+                    console.error(`[Wishlist] No Buy Box winner found for product: ${productId}`);
+                    throw new AppError(`No active listings found for product: ${productId}`, 404);
+                }
                 finalListingId = winner._id;
+                console.log(`[Wishlist] Resolved listing ID: ${finalListingId}`);
             }
 
             if (!finalListingId) throw new AppError('Listing ID or Product ID required', 400);
@@ -63,11 +69,13 @@ export class WishlistController {
 
             const exists = wishlist.items.some(item => item.listingId.toString() === finalListingId.toString());
             if (exists) {
+                console.log('[Wishlist] Item already exists');
                 return ApiResponse.success(res, 200, 'Item already in wishlist', { wishlist });
             }
 
             wishlist.items.push({ listingId: finalListingId, addedAt: new Date() });
             await wishlist.save();
+            console.log('[Wishlist] Item added successfully');
 
             const populatedWishlist = await WishlistController.getPopulated(req.user?._id);
             return ApiResponse.success(res, 201, 'Item added to wishlist', { wishlist: populatedWishlist });
