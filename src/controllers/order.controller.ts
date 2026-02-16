@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import logger from '../config/logger';
 import { Order, SubOrder } from '../models/order.model';
 import { Cart } from '../models/cart.model';
 import { Address } from '../models/address.model';
@@ -15,7 +16,10 @@ export class OrderController {
 
     static async placeOrder(req: Request, res: Response, next: NextFunction) {
         try {
+            logger.info('--- Place Order Request ---');
             const { addressId, paymentMethod, couponCode } = req.body;
+            logger.info(`Payload: ${JSON.stringify({ addressId, paymentMethod, couponCode })}`);
+            logger.info(`User ID: ${req.user?._id}`);
 
             // 1. Get Cart with Listings Populated
             const cart = await Cart.findOne({ userId: req.user?._id })
@@ -25,12 +29,18 @@ export class OrderController {
                 });
 
             if (!cart || cart.items.length === 0) {
+                logger.warn(`Cart is empty or not found for user ${req.user?._id}`);
                 throw new AppError('Cart is empty', 400);
             }
+            logger.info(`Cart found with ${cart.items.length} items`);
 
             // 2. Get Address
             const address = await Address.findById(addressId);
-            if (!address) throw new AppError('Address not found', 404);
+            if (!address) {
+                logger.warn(`Address not found for ID ${addressId}`);
+                throw new AppError('Address not found', 404);
+            }
+            logger.info('Address found');
 
             // 3. Calculate Totals & Group by Shop
             let totalAmount = 0;
@@ -38,7 +48,12 @@ export class OrderController {
 
             for (const item of cart.items) {
                 const listing: any = item.listingId;
-                if (!listing) throw new AppError('One or more listings in cart are no longer active', 400);
+                if (!listing) {
+                    logger.warn(`Listing not found for item ${JSON.stringify(item)}`);
+                    throw new AppError('One or more listings in cart are no longer active', 400);
+                }
+
+                logger.info(`Processing item for listing ${listing._id}, shop ${listing.shopId}`);
 
                 const itemPrice = listing.price;
                 const itemTotal = itemPrice * item.quantity;
@@ -49,12 +64,14 @@ export class OrderController {
                 // 3.1 Stock Check & Deduction
                 if (listing.isTrackQuantity && !listing.isContinueSelling) {
                     if (listing.stock < item.quantity) {
-                        throw new AppError(`Insufficient stock for ${listing.productId.title}`, 400);
+                        logger.warn(`Insufficient stock for ${listing.productId?.title}. Stock: ${listing.stock}, Requested: ${item.quantity}`);
+                        throw new AppError(`Insufficient stock for ${listing.productId?.title || 'Unknown Product'}`, 400);
                     }
                 }
 
                 if (listing.isTrackQuantity) {
                     listing.stock -= item.quantity;
+                    logger.info(`Updating stock for listing ${listing._id} to ${listing.stock}`);
                     await listing.save();
 
                     // Log Inventory Change
@@ -67,9 +84,11 @@ export class OrderController {
                         userId: req.user?._id,
                         currentStock: listing.stock
                     });
+                    logger.info('Inventory log created');
 
                     // Trigger Buy Box Re-calculation if stock changed significantly or hit 0
                     if (listing.stock === 0) {
+                        logger.info('Stock hit zero, triggering Buy Box update');
                         await BuyBoxService.updateBuyBox(listing.productId._id.toString());
                     }
                 }
@@ -83,7 +102,7 @@ export class OrderController {
                     title: listing.productId.title,
                     price: itemPrice,
                     quantity: item.quantity,
-                    image: listing.productId.images[0]
+                    image: listing.productId.images?.[0] || ''
                 });
                 shopGroups[shopId].subTotal += itemTotal;
             }
@@ -94,6 +113,7 @@ export class OrderController {
 
             // Coupon Logic
             if (couponCode) {
+                logger.info(`Applying coupon: ${couponCode}`);
                 const coupon = await Coupon.findOne({ code: couponCode, isActive: true });
                 if (coupon && new Date() <= coupon.expiryDate && totalAmount >= coupon.minOrderAmount) {
                     if (coupon.discountType === 'percentage') {
@@ -108,9 +128,11 @@ export class OrderController {
                     grandTotal -= couponDiscount;
                     coupon.usedCount += 1;
                     await (coupon as any).save();
+                    logger.info(`Coupon applied, discount: ${couponDiscount}`);
                 }
             }
 
+            logger.info('Creating Parent Order...');
             // 4. Create Parent Order
             const parentOrder = await Order.create({
                 buyerId: req.user?._id,
@@ -119,13 +141,15 @@ export class OrderController {
                 discountAmount: couponDiscount,
                 grandTotal,
                 paymentMethod,
-                shippingAddress: address,
+                shippingAddress: address.toObject(),
                 paymentStatus: 'pending'
             });
+            logger.info(`Parent Order created: ${parentOrder._id}`);
 
             // 5. Create Sub Orders
             const subOrders = [];
             for (const shopId in shopGroups) {
+                logger.info(`Creating SubOrder for shop ${shopId}`);
                 const subOrder = await SubOrder.create({
                     orderId: parentOrder._id,
                     shopId,
@@ -135,16 +159,19 @@ export class OrderController {
                 });
                 subOrders.push(subOrder);
             }
+            logger.info('SubOrders created');
 
             // 6. Clear Cart
             cart.items = [];
             await (cart as any).save();
+            logger.info('Cart cleared');
 
             return ApiResponse.success(res, 201, 'Order placed successfully', {
                 order: parentOrder,
                 subOrders
             });
-        } catch (error) {
+        } catch (error: any) {
+            logger.error(`Error in placeOrder: ${error.message}`, { stack: error.stack });
             next(error);
         }
     }

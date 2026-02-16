@@ -29,6 +29,7 @@ import payoutRoutes from './routes/payout.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import notificationRoutes from './routes/notification.routes';
 import reportRoutes from './routes/report.routes';
+import wishlistRoutes from './routes/wishlist.routes';
 import rateLimit from 'express-rate-limit';
 import { i18nMiddleware } from './middlewares/i18n.middleware';
 
@@ -113,6 +114,8 @@ app.use('/api/v1/payouts', payoutRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/reports', reportRoutes);
+console.log('Registering Wishlist Routes');
+app.use('/api/v1/wishlist', wishlistRoutes);
 
 
 import { globalErrorHandler } from './middlewares/error.middleware';

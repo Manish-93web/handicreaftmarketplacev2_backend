@@ -7,17 +7,20 @@ import { ApiResponse } from '../utils/ApiResponse';
 import { AppError } from '../utils/AppError';
 
 export class CartController {
+    private static async getPopulated(userId: any) {
+        return await Cart.findOne({ userId }).populate({
+            path: 'items.listingId',
+            populate: {
+                path: 'productId shopId',
+                select: 'title price images description name slug logo isVerified performanceScore'
+            }
+        });
+    }
+
 
     static async getCart(req: Request, res: Response, next: NextFunction) {
         try {
-            let cart = await Cart.findOne({ userId: req.user?._id })
-                .populate({
-                    path: 'items.listingId',
-                    populate: {
-                        path: 'productId shopId',
-                        select: 'title price images name slug logo isVerified performanceScore'
-                    }
-                });
+            let cart = await CartController.getPopulated(req.user?._id);
 
             if (!cart) {
                 cart = await Cart.create({ userId: req.user?._id, items: [] });
@@ -75,14 +78,7 @@ export class CartController {
 
             await (cart as any).save();
 
-            // Populate cart for the frontend
-            const populatedCart = await Cart.findById(cart._id).populate({
-                path: 'items.listingId',
-                populate: {
-                    path: 'productId shopId',
-                    select: 'title price images name slug logo isVerified performanceScore'
-                }
-            });
+            const populatedCart = await CartController.getPopulated(req.user?._id);
 
             return ApiResponse.success(res, 200, 'Item added to cart', { cart: populatedCart });
         } catch (error) {
@@ -113,7 +109,8 @@ export class CartController {
             }
 
             await (cart as any).save();
-            return ApiResponse.success(res, 200, 'Quantity updated', { cart });
+            const populatedCart = await CartController.getPopulated(req.user?._id);
+            return ApiResponse.success(res, 200, 'Quantity updated', { cart: populatedCart });
         } catch (error) {
             next(error);
         }
@@ -130,8 +127,9 @@ export class CartController {
 
             cart.items = cart.items.filter(p => p.listingId.toString() !== listingId);
             await (cart as any).save();
+            const populatedCart = await CartController.getPopulated(req.user?._id);
 
-            return ApiResponse.success(res, 200, 'Item removed', { cart });
+            return ApiResponse.success(res, 200, 'Item removed', { cart: populatedCart });
         } catch (error) {
             next(error);
         }

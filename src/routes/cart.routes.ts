@@ -9,6 +9,6 @@ router.use(protect); // All cart routes require auth
 router.get('/', CartController.getCart);
 router.post('/add', CartController.addToCart);
 router.patch('/quantity', CartController.updateQuantity);
-router.delete('/:productId', CartController.removeFromCart);
+router.delete('/:listingId', CartController.removeFromCart);
 
 export default router;
