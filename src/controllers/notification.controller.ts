@@ -65,7 +65,7 @@ export class NotificationController {
             const notification = await Notification.findOneAndUpdate(
                 { _id: id, recipientId: req.user?._id },
                 { isRead: true },
-                { new: true }
+                { returnDocument: 'after' }
             );
 
             if (!notification) throw new AppError('Notification not found', 404);

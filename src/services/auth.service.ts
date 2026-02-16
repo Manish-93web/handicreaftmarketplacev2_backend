@@ -1,6 +1,7 @@
 import { User, IUser } from '../models/user.model';
 import { OTP } from '../models/otp.model';
 import { RefreshToken } from '../models/refreshToken.model';
+import { Shop } from '../models/shop.model';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { AppError } from '../utils/AppError';
@@ -86,6 +87,39 @@ export class AuthService {
         return user;
     }
 
+    // Register Seller Application
+    static async registerSeller(data: any) {
+        const { name, email, phone, shopName, businessDetails } = data;
+
+        // 1. Check if email exists
+        const existingUser = await User.findOne({ email });
+        if (existingUser) throw new AppError('Email already in use', 400);
+
+        // 2. Create User as Seller (Not verified)
+        // Set a random placeholder password so they can't login until admin sets a real one
+        const placeholderPassword = crypto.randomBytes(32).toString('hex');
+        const user = await User.create({
+            name,
+            email,
+            phone,
+            role: 'seller',
+            password: placeholderPassword,
+            isVerified: false
+        });
+
+        // 3. Create Shop
+        const slug = shopName.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '') + '-' + Date.now();
+        const shop = await Shop.create({
+            sellerId: user._id,
+            name: shopName,
+            slug,
+            businessDetails,
+            kycStatus: 'pending'
+        });
+
+        return { user, shop };
+    }
+
     // Login User
     static async login(email: string, password: string) {
         // Explicitly select password since it is set to select: false
@@ -104,7 +138,7 @@ export class AuthService {
         await OTP.findOneAndUpdate(
             { email },
             { otp, expiresAt },
-            { upsert: true, new: true }
+            { upsert: true, returnDocument: 'after' }
         );
 
         return otp;

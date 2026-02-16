@@ -1,0 +1,1 @@
+[2026-02-16T11:18:58.258Z] SMS to 1234567890: Congratulations Test Artist! Your seller account on Handicraft Marketplace is approved. Credentials: Email: seller_flow_1771240735382@test.com, Pass: 1ffec3fe168dd9cc

@@ -289,7 +289,18 @@ export class ProductController {
                 .populate('productId')
                 .sort('-createdAt');
 
-            return ApiResponse.success(res, 200, 'My products (listings) fetched', { listings });
+            // Help frontend by also providing a direct products list
+            const products = listings.map(l => ({
+                ...(l.productId as any).toObject(),
+                listing: {
+                    _id: l._id,
+                    price: l.price,
+                    stock: l.stock,
+                    isActive: l.isActive
+                }
+            }));
+
+            return ApiResponse.success(res, 200, 'My products fetched', { listings, products });
         } catch (error) {
             next(error);
         }
@@ -343,7 +354,7 @@ export class ProductController {
                     // Actually, let's keep isPublished separate so seller controls visibility even after approval.
                     // But for simplicity in Phase 4, if approved -> logic usually allows seller to toggle isPublished.
                 },
-                { new: true }
+                { returnDocument: 'after' }
             );
 
             if (!product) throw new AppError('Product not found', 404);

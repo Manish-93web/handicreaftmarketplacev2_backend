@@ -18,6 +18,18 @@ export class AuthController {
         }
     }
 
+    static async registerSeller(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { user, shop } = await AuthService.registerSeller(req.body);
+            return ApiResponse.success(res, 201, 'Seller application submitted successfully. Your account is under review.', {
+                user: { id: user._id, name: user.name, email: user.email },
+                shop: { id: shop._id, name: shop.name }
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
     static async login(req: Request, res: Response, next: NextFunction) {
         try {
             const { email, password } = req.body;

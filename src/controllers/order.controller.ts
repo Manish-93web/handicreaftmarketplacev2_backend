@@ -222,7 +222,7 @@ export class OrderController {
             const subOrder = await SubOrder.findByIdAndUpdate(
                 subOrderId,
                 { status },
-                { new: true }
+                { returnDocument: 'after' }
             );
 
             if (!subOrder) throw new AppError('Sub-order not found', 404);
@@ -250,7 +250,7 @@ export class OrderController {
             const subOrder = await SubOrder.findByIdAndUpdate(
                 subOrderId,
                 { trackingNumber, carrier, status: 'shipped' },
-                { new: true }
+                { returnDocument: 'after' }
             );
 
             if (!subOrder) throw new AppError('Sub-order not found', 404);

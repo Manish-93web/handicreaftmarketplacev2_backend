@@ -3,6 +3,7 @@ import { Order, SubOrder } from '../models/order.model';
 import { User } from '../models/user.model';
 import { Shop } from '../models/shop.model';
 import { Product } from '../models/product.model';
+import { Review } from '../models/review.model';
 import { ApiResponse } from '../utils/ApiResponse';
 import { AppError } from '../utils/AppError';
 import mongoose from 'mongoose';
@@ -96,15 +97,35 @@ export class AnalyticsController {
                 { $limit: 5 }
             ]);
 
-            // 3. Recent Orders
+            // 3. Average Rating
+            const productIds = await Product.find({ 'listings.shopId': shop._id }).distinct('_id');
+            const ratingStats = await Review.aggregate([
+                { $match: { productId: { $in: productIds }, status: 'approved' } },
+                {
+                    $group: {
+                        _id: null,
+                        avgRating: { $avg: '$rating' },
+                        reviewCount: { $sum: 1 }
+                    }
+                }
+            ]);
+
+            const avgRating = ratingStats.length > 0 ? Math.round(ratingStats[0].avgRating * 10) / 10 : 0;
+            const reviewCount = ratingStats.length > 0 ? ratingStats[0].reviewCount : 0;
+
+            // 4. Recent Orders
             const recentOrders = await SubOrder.find({ shopId: shop._id })
                 .sort('-createdAt')
                 .limit(5)
-                .select('orderId subTotal status createdAt');
+                .select('orderId subTotal status createdAt items');
 
             return ApiResponse.success(res, 200, 'Seller analytics fetched', {
-                totalSales,
-                orderCount,
+                summary: {
+                    totalSales,
+                    orderCount,
+                    avgRating,
+                    reviewCount
+                },
                 topProducts,
                 recentOrders
             });

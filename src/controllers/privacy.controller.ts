@@ -85,7 +85,7 @@ export class PrivacyController {
 
             const user = await User.findByIdAndUpdate(userId, {
                 privacyPreferences
-            }, { new: true });
+            }, { returnDocument: 'after' });
 
             return ApiResponse.success(res, 200, 'Privacy preferences updated successfully', {
                 privacyPreferences: user?.privacyPreferences

@@ -11,7 +11,7 @@ export class WalletController {
             const wallet = await Wallet.findOneAndUpdate(
                 { userId: req.user?._id },
                 { $setOnInsert: { userId: req.user?._id } },
-                { upsert: true, new: true, setDefaultsOnInsert: true }
+                { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
             );
 
             const transactions = await Transaction.find({ walletId: wallet!._id })
@@ -36,7 +36,7 @@ export class WalletController {
         const wallet = await Wallet.findOneAndUpdate(
             { userId: sellerId },
             { $setOnInsert: { userId: sellerId } },
-            { upsert: true, new: true, setDefaultsOnInsert: true }
+            { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
         );
 
         // 2. Add to pending balance (will be moved to balance after delivery/return period)
@@ -58,7 +58,7 @@ export class WalletController {
         const buyerWallet = await Wallet.findOneAndUpdate(
             { userId: buyerId },
             { $setOnInsert: { userId: buyerId } },
-            { upsert: true, new: true, setDefaultsOnInsert: true }
+            { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
         );
 
         buyerWallet.balance += amount;
@@ -103,6 +103,10 @@ export class WalletController {
 
             if (wallet.balance < amount) {
                 throw new AppError('Insufficient funds', 400);
+            }
+
+            if (amount < 1000) {
+                throw new AppError('Minimum payout amount is ₹1,000', 400);
             }
 
             // Lock funds by deducting immediately

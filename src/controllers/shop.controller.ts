@@ -64,7 +64,7 @@ export class ShopController {
             const shop = await Shop.findOneAndUpdate(
                 { sellerId: req.user?._id },
                 updatePayload,
-                { new: true, runValidators: true }
+                { returnDocument: 'after', runValidators: true }
             );
 
             if (!shop) {
@@ -86,7 +86,7 @@ export class ShopController {
                     kycDocuments: documents,
                     kycStatus: 'pending' // Reset status to pending on update
                 },
-                { new: true }
+                { returnDocument: 'after' }
             );
 
             if (!shop) {
@@ -113,7 +113,7 @@ export class ShopController {
                         endDate: endDate ? new Date(endDate) : undefined
                     }
                 },
-                { new: true }
+                { returnDocument: 'after' }
             );
 
             if (!shop) {

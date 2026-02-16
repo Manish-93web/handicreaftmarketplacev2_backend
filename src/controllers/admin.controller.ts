@@ -2,8 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 import { User } from '../models/user.model';
 import { Shop } from '../models/shop.model';
 import { Product } from '../models/product.model';
+import { SellerListing } from '../models/sellerListing.model';
 import { ApiResponse } from '../utils/ApiResponse';
 import { AppError } from '../utils/AppError';
+import { NotificationService } from '../services/notification.service';
+import crypto from 'crypto';
 
 export class AdminController {
 
@@ -22,7 +25,7 @@ export class AdminController {
             const { userId } = req.params;
             const { isVerified } = req.body;
 
-            const user = await User.findByIdAndUpdate(userId, { isVerified }, { new: true });
+            const user = await User.findByIdAndUpdate(userId, { isVerified }, { returnDocument: 'after' });
             if (!user) throw new AppError('User not found', 404);
 
             return ApiResponse.success(res, 200, 'User status updated', { user });
@@ -48,16 +51,39 @@ export class AdminController {
     static async approveShopKYC(req: Request, res: Response, next: NextFunction) {
         try {
             const { shopId } = req.params;
-            const shop = await Shop.findById(shopId);
+            const shop = await Shop.findById(shopId).populate('sellerId');
             if (!shop) throw new AppError('Shop not found', 404);
 
+            const user = await User.findById(shop.sellerId);
+            if (!user) throw new AppError('Seller not found', 404);
+
+            // 1. Generate Secure Password
+            const password = crypto.randomBytes(8).toString('hex'); // 16 target characters
+
+            // 2. Update User
+            user.password = password;
+            user.isVerified = true;
+            await user.save();
+
+            // 3. Update Shop
             shop.isVerified = true;
             shop.kycStatus = 'approved';
-            shop.rejectionReason = undefined; // Clear any previous rejection
+            shop.rejectionReason = undefined;
             shop.rejectedAt = undefined;
             await (shop as any).save();
 
-            return ApiResponse.success(res, 200, 'Shop KYC approved', { shop });
+            // 4. Notify Seller
+            await NotificationService.sendSellerApproval(
+                user.email,
+                user.phone || '',
+                user.name,
+                { email: user.email, password }
+            );
+
+            return ApiResponse.success(res, 200, 'Shop KYC approved and credentials sent to seller', {
+                shop,
+                generatedPassword: password // Shared in response as per user request "show in admin pannel"
+            });
         } catch (error) {
             next(error);
         }
@@ -70,8 +96,11 @@ export class AdminController {
 
             if (!reason) throw new AppError('Rejection reason is required', 400);
 
-            const shop = await Shop.findById(shopId);
+            const shop = await Shop.findById(shopId).populate('sellerId');
             if (!shop) throw new AppError('Shop not found', 404);
+
+            const user = await User.findById(shop.sellerId);
+            if (!user) throw new AppError('Seller not found', 404);
 
             shop.isVerified = false;
             shop.kycStatus = 'rejected';
@@ -79,7 +108,15 @@ export class AdminController {
             shop.rejectedAt = new Date();
             await (shop as any).save();
 
-            return ApiResponse.success(res, 200, 'Shop KYC rejected', { shop });
+            // Notify Seller
+            await NotificationService.sendSellerRejection(
+                user.email,
+                user.phone || '',
+                user.name,
+                reason
+            );
+
+            return ApiResponse.success(res, 200, 'Shop KYC rejected and seller notified', { shop });
         } catch (error) {
             next(error);
         }
@@ -101,12 +138,62 @@ export class AdminController {
                     approvalStatus: status,
                     isPublished: status === 'approved'
                 },
-                { new: true }
-            );
+                { returnDocument: 'after' }
+            ).populate('category');
 
             if (!product) throw new AppError('Product not found', 404);
 
+            // Notify Seller
+            const listing = await SellerListing.findOne({ productId: product._id }).populate({
+                path: 'shopId',
+                populate: { path: 'sellerId' }
+            });
+
+            if (listing && (listing.shopId as any).sellerId) {
+                const seller = (listing.shopId as any).sellerId;
+                const shop = listing.shopId as any;
+
+                if (status === 'approved') {
+                    await NotificationService.sendNotification(
+                        seller._id,
+                        'product_approved',
+                        'Product Approved!',
+                        `Your product "${product.title}" has been approved and is now live.`
+                    );
+                    // Also could send email here if we wanted, let's stick to in-app/logger for now unless asked
+                } else if (status === 'rejected') {
+                    await NotificationService.sendNotification(
+                        seller._id,
+                        'product_rejected',
+                        'Product Review Update',
+                        `Your product "${product.title}" requires changes or was rejected.`
+                    );
+                }
+            }
+
             return ApiResponse.success(res, 200, `Product ${status} successfully`, { product });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    static async getPendingProducts(req: Request, res: Response, next: NextFunction) {
+        try {
+            const products = await Product.find({ approvalStatus: 'pending' })
+                .populate('category', 'name')
+                .sort({ createdAt: -1 });
+
+            // We also want to know which shop(s) have listings for these products
+            const productsWithShops = await Promise.all(products.map(async (product) => {
+                const listings = await SellerListing.find({ productId: product._id })
+                    .populate('shopId', 'name slug');
+                return {
+                    ...product.toObject(),
+                    listings
+                };
+            }));
+
+            return ApiResponse.success(res, 200, 'Pending products fetched', { products: productsWithShops });
         } catch (error) {
             next(error);
         }

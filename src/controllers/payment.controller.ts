@@ -64,7 +64,7 @@ export class PaymentController {
                         orderId: razorpay_order_id,
                         method: 'razorpay'
                     }
-                }, { new: true });
+                }, { returnDocument: 'after' });
 
                 if (!order) throw new AppError('Order not found', 404);
 

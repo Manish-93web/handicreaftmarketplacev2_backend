@@ -6,6 +6,7 @@ import { logAudit } from '../middlewares/audit.middleware';
 const router = Router();
 
 router.post('/register', logAudit('user_registration', 'auth'), AuthController.register);
+router.post('/register-seller', logAudit('seller_registration', 'auth'), AuthController.registerSeller);
 router.post('/login', logAudit('user_login', 'auth'), AuthController.login);
 router.post('/send-otp', AuthController.sendOTP);
 router.post('/verify-otp', AuthController.verifyOTP);

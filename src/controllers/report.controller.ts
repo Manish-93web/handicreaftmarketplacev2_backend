@@ -54,7 +54,7 @@ export class ReportController {
                     actionTaken,
                     resolvedBy: req.user?._id
                 },
-                { new: true }
+                { returnDocument: 'after' }
             );
 
             if (!report) throw new AppError('Report not found', 404);

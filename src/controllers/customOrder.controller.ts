@@ -40,7 +40,7 @@ export class CustomOrderController {
             const request = await CustomOrder.findOneAndUpdate(
                 { _id: requestId, sellerId: shop._id },
                 { quotePrice, status: 'quoted' },
-                { new: true }
+                { returnDocument: 'after' }
             );
 
             if (!request) throw new AppError('Request not found', 404);
@@ -58,7 +58,7 @@ export class CustomOrderController {
             const request = await CustomOrder.findOneAndUpdate(
                 { _id: requestId, buyerId: req.user?._id, status: 'quoted' },
                 { status: 'accepted' },
-                { new: true }
+                { returnDocument: 'after' }
             );
 
             if (!request) throw new AppError('Valid quoted request not found', 404);

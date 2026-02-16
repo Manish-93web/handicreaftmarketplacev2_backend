@@ -2,7 +2,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface INotification extends Document {
     recipientId: mongoose.Types.ObjectId;
-    type: 'order_status' | 'promotion' | 'system' | 'alert';
+    type: 'order_status' | 'promotion' | 'system' | 'alert' | 'product_approved' | 'product_rejected';
     title: string;
     message: string;
     data?: any; // JSON data for deep linking, e.g., { orderId: '...' }
@@ -14,7 +14,7 @@ const NotificationSchema: Schema = new Schema({
     recipientId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     type: {
         type: String,
-        enum: ['order_status', 'promotion', 'system', 'alert'],
+        enum: ['order_status', 'promotion', 'system', 'alert', 'product_approved', 'product_rejected'],
         required: true
     },
     title: { type: String, required: true },
