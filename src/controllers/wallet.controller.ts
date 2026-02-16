@@ -8,12 +8,13 @@ export class WalletController {
 
     static async getMyWallet(req: Request, res: Response, next: NextFunction) {
         try {
-            let wallet = await Wallet.findOne({ userId: req.user?._id });
-            if (!wallet) {
-                wallet = await Wallet.create({ userId: req.user?._id });
-            }
+            const wallet = await Wallet.findOneAndUpdate(
+                { userId: req.user?._id },
+                { $setOnInsert: { userId: req.user?._id } },
+                { upsert: true, new: true, setDefaultsOnInsert: true }
+            );
 
-            const transactions = await Transaction.find({ walletId: wallet._id })
+            const transactions = await Transaction.find({ walletId: wallet!._id })
                 .sort('-createdAt')
                 .limit(20);
 
@@ -32,8 +33,11 @@ export class WalletController {
         const commission = amount * 0.10;
         const netAmount = amount - commission;
 
-        let wallet = await Wallet.findOne({ userId: sellerId });
-        if (!wallet) wallet = await Wallet.create({ userId: sellerId });
+        const wallet = await Wallet.findOneAndUpdate(
+            { userId: sellerId },
+            { $setOnInsert: { userId: sellerId } },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
 
         // 2. Add to pending balance (will be moved to balance after delivery/return period)
         wallet.pendingBalance += netAmount;
@@ -51,8 +55,11 @@ export class WalletController {
     }
 
     static async refundToBuyerWallet(subOrderId: string, amount: number, buyerId: string, sellerId: string, reason: string) {
-        let buyerWallet = await Wallet.findOne({ userId: buyerId });
-        if (!buyerWallet) buyerWallet = await Wallet.create({ userId: buyerId });
+        const buyerWallet = await Wallet.findOneAndUpdate(
+            { userId: buyerId },
+            { $setOnInsert: { userId: buyerId } },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
 
         buyerWallet.balance += amount;
         await (buyerWallet as any).save();

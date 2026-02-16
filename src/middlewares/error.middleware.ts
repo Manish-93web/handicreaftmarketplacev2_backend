@@ -10,6 +10,10 @@ export const globalErrorHandler = (err: any, req: Request, res: Response, next: 
         logger.error(err);
     }
 
+    if (err.name === 'CastError') {
+        err = new AppError(`Invalid ${err.path}: ${err.value}`, 400);
+    }
+
     if (err.name === 'JsonWebTokenError') {
         err = new AppError('Invalid token. Please log in again!', 401);
     }

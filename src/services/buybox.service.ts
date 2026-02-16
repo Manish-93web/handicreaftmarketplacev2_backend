@@ -54,7 +54,13 @@ export class BuyBoxService {
      * Gets the Buy Box winner for a product.
      */
     static async getBuyBoxWinner(productId: string) {
-        return await SellerListing.findOne({ productId, isBuyBoxWinner: true, isActive: true })
-            .populate('shopId', 'name slug logo isVerified performanceScore');
+        console.log('BuyBoxService searching for ProductId:', productId);
+        const winner = await SellerListing.findOne({
+            productId: new (require('mongoose')).Types.ObjectId(productId),
+            isBuyBoxWinner: true,
+            isActive: true
+        }).populate('shopId', 'name slug logo isVerified performanceScore');
+        console.log('BuyBoxService found:', winner ? 'YES' : 'NO');
+        return winner;
     }
 }
