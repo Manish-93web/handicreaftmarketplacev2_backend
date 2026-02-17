@@ -22,6 +22,9 @@ export interface IProduct extends Document {
         sku: string;
         price: number;
         stock: number;
+        stockStatus: 'in_stock' | 'out_of_stock' | 'on_backorder';
+        allowBackorder: boolean;
+        condition: 'new' | 'used_like_new' | 'used_good' | 'used_fair' | 'refurbished';
         attributes: Record<string, string>;
         image?: string;
     }[];
@@ -52,6 +55,10 @@ export interface IProduct extends Document {
         count: number;
     };
     approvalStatus: 'draft' | 'pending' | 'approved' | 'rejected';
+    digitalFileUrl?: string;
+    isMadeToOrder: boolean;
+    fixedCommissionFee?: number; // Override category-based percentage
+    hsnCode?: string; // Goods and Services Tax code
 
     createdAt: Date;
     updatedAt: Date;
@@ -60,6 +67,19 @@ export interface IProduct extends Document {
 const ProductSchema: Schema = new Schema({
     title: { type: String, required: true, trim: true },
     slug: { type: String, required: true, unique: true, lowercase: true },
+    sku: { type: String, required: true },
+    stock: { type: Number, default: 0 },
+    stockStatus: {
+        type: String,
+        enum: ['in_stock', 'out_of_stock', 'on_backorder'],
+        default: 'in_stock'
+    },
+    allowBackorder: { type: Boolean, default: false },
+    condition: {
+        type: String,
+        enum: ['new', 'used_like_new', 'used_good', 'used_fair', 'refurbished'],
+        required: true
+    },
     description: { type: String, required: true },
     shortDescription: { type: String },
 
@@ -119,7 +139,11 @@ const ProductSchema: Schema = new Schema({
         type: String,
         enum: ['draft', 'pending', 'approved', 'rejected'],
         default: 'draft'
-    }
+    },
+    digitalFileUrl: { type: String },
+    isMadeToOrder: { type: Boolean, default: false },
+    fixedCommissionFee: { type: Number },
+    hsnCode: { type: String }
 }, { timestamps: true });
 
 ProductSchema.index({ title: 'text', description: 'text', tags: 'text' });

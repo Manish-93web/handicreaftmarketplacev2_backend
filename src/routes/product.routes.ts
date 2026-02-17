@@ -11,10 +11,13 @@ router.post('/categories', protect, restrictTo('admin'), CategoryController.crea
 
 // Products
 router.get('/suggestions', ProductController.getSuggestions);
+router.get('/recently-viewed', protect, ProductController.getRecentlyViewed);
+router.post('/track-view', protect, ProductController.trackView);
 router.get('/aggregations', ProductController.getSearchAggregations);
 router.get('/my-products', protect, restrictTo('seller', 'admin'), ProductController.getMyProducts);
 router.get('/', ProductController.getProducts); // Public listing
 router.get('/:slug', ProductController.getProductBySlug);
+router.get('/:id/related', ProductController.getRelatedProducts);
 router.post('/', protect, restrictTo('seller', 'admin'), ProductController.createProduct);
 router.post('/bulk-import', protect, restrictTo('seller', 'admin'), ProductController.bulkImportProducts);
 router.patch('/:id', protect, restrictTo('seller', 'admin'), ProductController.updateProduct);

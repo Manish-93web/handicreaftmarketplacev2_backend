@@ -4,8 +4,11 @@ export interface ICart extends Document {
     userId: mongoose.Types.ObjectId;
     items: {
         listingId: mongoose.Types.ObjectId;
-        variantId?: string; // Still useful if we have variant listings
+        variantId?: string;
         quantity: number;
+        personalizationData?: any;
+        isGiftWrapped?: boolean;
+        isSavedForLater?: boolean;
     }[];
     updatedAt: Date;
 }
@@ -15,7 +18,10 @@ const CartSchema: Schema = new Schema({
     items: [{
         listingId: { type: Schema.Types.ObjectId, ref: 'SellerListing', required: true },
         variantId: { type: String },
-        quantity: { type: Number, default: 1, min: 1 }
+        quantity: { type: Number, default: 1, min: 1 },
+        personalizationData: { type: Object },
+        isGiftWrapped: { type: Boolean, default: false },
+        isSavedForLater: { type: Boolean, default: false }
     }]
 }, { timestamps: true });
 

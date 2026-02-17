@@ -1,4 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
+import mongoose from 'mongoose';
+import logger from '../config/logger';
 import { Order } from '../models/order.model';
 import { ApiResponse } from '../utils/ApiResponse';
 import { AppError } from '../utils/AppError';
@@ -72,13 +74,24 @@ export class PaymentController {
                 const subOrders = await SubOrder.find({ orderId: order._id });
 
                 for (const subOrder of subOrders) {
-                    await SubOrder.findByIdAndUpdate(subOrder._id, { status: 'processing' }); // Update suborder status too
+                    await SubOrder.findByIdAndUpdate(subOrder._id, { status: 'processing' });
 
-                    // Credit Seller Wallet (now that payment is confirmed)
+                    // Handle Digital Products and Made-to-Order
+                    for (const item of subOrder.items) {
+                        const product = await mongoose.model('Product').findById(item.productId);
+                        if (product?.productType === 'digital' && product.digitalFileUrl) {
+                            // Logic to send digital file
+                            logger.info(`Sending digital product "${product.title}" to buyer ${order.buyerId}`);
+                            // In real app, trigger EmailService here
+                        }
+                    }
+
+                    // Credit Seller Wallet
                     await WalletController.handleOrderCredit(
                         subOrder._id.toString(),
                         subOrder.subTotal,
-                        subOrder.shopId.toString()
+                        subOrder.shopId.toString(),
+                        subOrder.commission || 0
                     );
                 }
 

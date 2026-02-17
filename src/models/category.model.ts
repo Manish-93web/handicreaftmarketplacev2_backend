@@ -8,6 +8,7 @@ export interface ICategory extends Document {
     description?: string;
     isActive: boolean;
     level: number;
+    commissionRate?: number; // Percentage
     ancestors: { _id: mongoose.Types.ObjectId, name: string, slug: string }[];
 }
 
@@ -19,6 +20,7 @@ const CategorySchema: Schema = new Schema({
     description: { type: String },
     isActive: { type: Boolean, default: true },
     level: { type: Number, default: 0 },
+    commissionRate: { type: Number, default: 0 },
     ancestors: [{
         _id: { type: Schema.Types.ObjectId, ref: 'Category' },
         name: String,

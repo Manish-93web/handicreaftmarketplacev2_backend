@@ -6,8 +6,12 @@ export interface IReview extends Document {
     rating: number; // 1 to 5
     comment: string;
     images?: string[];
+    videoUrl?: string;
+    helpfulVotes: number;
     isVerifiedPurchase: boolean;
     status: 'pending' | 'approved' | 'rejected';
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 const ReviewSchema: Schema = new Schema({
@@ -16,6 +20,8 @@ const ReviewSchema: Schema = new Schema({
     rating: { type: Number, required: true, min: 1, max: 5 },
     comment: { type: String, required: true },
     images: [String],
+    videoUrl: String,
+    helpfulVotes: { type: Number, default: 0 },
     isVerifiedPurchase: { type: Boolean, default: false },
     status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'approved' } // Default approved for MVP
 }, { timestamps: true });

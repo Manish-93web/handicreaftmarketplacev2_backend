@@ -7,6 +7,8 @@ export interface ISellerListing extends Document {
     salePrice?: number;
     sku: string;
     stock: number;
+    stockStatus: 'in_stock' | 'out_of_stock' | 'on_backorder';
+    allowBackorder: boolean;
     isTrackQuantity: boolean;
     isContinueSelling: boolean;
     bulkPricing?: {
@@ -28,6 +30,12 @@ const SellerListingSchema: Schema = new Schema({
     salePrice: { type: Number },
     sku: { type: String, required: true },
     stock: { type: Number, default: 0 },
+    stockStatus: {
+        type: String,
+        enum: ['in_stock', 'out_of_stock', 'on_backorder'],
+        default: 'in_stock'
+    },
+    allowBackorder: { type: Boolean, default: false },
     isTrackQuantity: { type: Boolean, default: true },
     isContinueSelling: { type: Boolean, default: false },
     bulkPricing: [{

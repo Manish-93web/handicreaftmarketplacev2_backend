@@ -11,8 +11,10 @@ export interface IOrder extends mongoose.Document {
     paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
     paymentMethod: string;
     shippingAddress: any;
-    status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+    status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'completed' | 'cancelled' | 'refunded' | 'returned';
     trackingNumber?: string;
+    fraudScore: number;
+    isFlagged: boolean;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -28,16 +30,18 @@ export interface ISubOrder extends mongoose.Document {
         price: number;
         quantity: number;
         image: string;
-        status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+        status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'completed' | 'cancelled' | 'refunded' | 'returned' | 'exchanged';
         returnStatus: 'none' | 'requested' | 'approved' | 'rejected' | 'refunded';
     }[];
     subTotal: number;
-    status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+    status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'completed' | 'cancelled' | 'refunded' | 'returned' | 'exchanged';
     trackingNumber?: string;
     carrier?: string;
     returnReason?: string;
     returnStatus: 'none' | 'requested' | 'approved' | 'rejected' | 'refunded';
     returnEvidence?: string[];
+    commission: number;
+    netAmount: number;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -58,10 +62,12 @@ const OrderSchema = new mongoose.Schema({
     shippingAddress: { type: mongoose.Schema.Types.Mixed, required: true },
     status: {
         type: String,
-        enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
+        enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'completed', 'cancelled', 'refunded', 'returned'],
         default: 'pending'
     },
-    trackingNumber: { type: String, default: null }
+    trackingNumber: { type: String, default: null },
+    fraudScore: { type: Number, default: 0 },
+    isFlagged: { type: Boolean, default: false }
 }, { timestamps: true });
 
 const SubOrderSchema = new mongoose.Schema({
@@ -76,7 +82,7 @@ const SubOrderSchema = new mongoose.Schema({
         image: String,
         status: {
             type: String,
-            enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
+            enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'completed', 'cancelled', 'refunded', 'returned', 'exchanged'],
             default: 'pending'
         },
         returnStatus: {
@@ -88,7 +94,7 @@ const SubOrderSchema = new mongoose.Schema({
     subTotal: { type: Number, required: true },
     status: {
         type: String,
-        enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
+        enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'completed', 'cancelled', 'refunded', 'returned', 'exchanged'],
         default: 'pending'
     },
     trackingNumber: { type: String, default: null },
@@ -99,7 +105,9 @@ const SubOrderSchema = new mongoose.Schema({
         enum: ['none', 'requested', 'approved', 'rejected', 'refunded'],
         default: 'none'
     },
-    returnEvidence: [{ type: String }] // Array of URLs
+    returnEvidence: [{ type: String }], // Array of URLs
+    commission: { type: Number, default: 0 },
+    netAmount: { type: Number, default: 0 }
 }, { timestamps: true });
 
 export const Order = mongoose.model<IOrder>('Order', OrderSchema);

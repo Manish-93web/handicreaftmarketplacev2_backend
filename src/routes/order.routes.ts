@@ -14,6 +14,7 @@ router.patch('/sub-order/:subOrderId/status', restrictTo('seller', 'admin'), Ord
 router.patch('/sub-order/:subOrderId/tracking', restrictTo('seller', 'admin'), OrderController.updateSubOrderTracking);
 router.post('/sub-order/:subOrderId/cancel', OrderController.cancelOrder);
 router.post('/sub-order/:subOrderId/return', OrderController.requestReturn);
+router.post('/sub-order/:subOrderId/exchange', OrderController.requestExchange);
 router.patch('/sub-order/:subOrderId/return-status', restrictTo('seller', 'admin'), OrderController.processReturn);
 router.get('/sub-order/:subOrderId/invoice', OrderController.generateInvoice);
 

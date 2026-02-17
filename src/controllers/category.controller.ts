@@ -48,4 +48,34 @@ export class CategoryController {
             next(error);
         }
     }
+
+    static async updateCategory(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            const updates = req.body;
+
+            if (updates.name) {
+                updates.slug = updates.name.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
+            }
+
+            const category = await Category.findByIdAndUpdate(id, updates, { new: true });
+            if (!category) throw new AppError('Category not found', 404);
+
+            return ApiResponse.success(res, 200, 'Category updated successfully', { category });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    static async deleteCategory(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            const category = await Category.findByIdAndDelete(id);
+            if (!category) throw new AppError('Category not found', 404);
+
+            return ApiResponse.success(res, 200, 'Category deleted successfully');
+        } catch (error) {
+            next(error);
+        }
+    }
 }

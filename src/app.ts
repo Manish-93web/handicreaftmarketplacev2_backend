@@ -11,6 +11,7 @@ const app: Express = express();
 import authRoutes from './routes/auth.routes';
 import cookieParser from 'cookie-parser';
 import shopRoutes from './routes/shop.routes';
+import followRoutes from './routes/follow.routes';
 import productRoutes from './routes/product.routes';
 import cartRoutes from './routes/cart.routes';
 import addressRoutes from './routes/address.routes';
@@ -30,6 +31,7 @@ import analyticsRoutes from './routes/analytics.routes';
 import notificationRoutes from './routes/notification.routes';
 import reportRoutes from './routes/report.routes';
 import wishlistRoutes from './routes/wishlist.routes';
+import disputeRoutes from './routes/dispute.routes';
 import rateLimit from 'express-rate-limit';
 import { i18nMiddleware } from './middlewares/i18n.middleware';
 
@@ -96,6 +98,7 @@ app.use(csrfProtection);
 // Routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/shops', shopRoutes);
+app.use('/api/v1/follows', followRoutes);
 app.use('/api/v1/products', productRoutes);
 app.use('/api/v1/cart', cartRoutes);
 app.use('/api/v1/addresses', addressRoutes);
@@ -116,6 +119,7 @@ app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/reports', reportRoutes);
 console.log('Registering Wishlist Routes');
 app.use('/api/v1/wishlist', wishlistRoutes);
+app.use('/api/v1/disputes', disputeRoutes);
 
 
 import { globalErrorHandler } from './middlewares/error.middleware';

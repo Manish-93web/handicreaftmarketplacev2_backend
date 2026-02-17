@@ -8,5 +8,6 @@ router.use(protect);
 
 router.get('/history/:otherUserId', ChatController.getChatHistory);
 router.get('/my-chats', ChatController.getMyChats);
+router.post('/', ChatController.sendMessage);
 
 export default router;

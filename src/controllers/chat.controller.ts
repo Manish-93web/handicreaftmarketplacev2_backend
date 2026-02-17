@@ -47,4 +47,22 @@ export class ChatController {
             next(error);
         }
     }
+
+    static async sendMessage(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { receiverId, message, orderId } = req.body;
+            const senderId = req.user?._id;
+
+            const newMessage = await ChatMessage.create({
+                senderId,
+                receiverId,
+                message,
+                orderId
+            });
+
+            return ApiResponse.success(res, 201, 'Message sent', { message: newMessage });
+        } catch (error) {
+            next(error);
+        }
+    }
 }

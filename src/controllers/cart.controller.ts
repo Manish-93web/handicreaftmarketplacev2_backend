@@ -129,7 +129,70 @@ export class CartController {
             await (cart as any).save();
             const populatedCart = await CartController.getPopulated(req.user?._id);
 
-            return ApiResponse.success(res, 200, 'Item removed', { cart: populatedCart });
+            return ApiResponse.success(res, 200, 'Cart item removed', { cart: populatedCart });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    static async toggleSaveForLater(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { listingId } = req.params;
+            const cart = await Cart.findOne({ userId: req.user?._id });
+            if (!cart) throw new AppError('Cart not found', 404);
+
+            const item = cart.items.find(i => i.listingId.toString() === listingId);
+            if (!item) throw new AppError('Item not found in cart', 404);
+
+            item.isSavedForLater = !item.isSavedForLater;
+            await (cart as any).save();
+
+            const populatedCart = await CartController.getPopulated(req.user?._id);
+            return ApiResponse.success(res, 200, `Item ${item.isSavedForLater ? 'saved for later' : 'moved to cart'}`, { cart: populatedCart });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    static async mergeCart(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { guestItems } = req.body;
+            if (!Array.isArray(guestItems)) throw new AppError('Invalid guest items', 400);
+
+            let cart = await Cart.findOne({ userId: req.user?._id });
+            if (!cart) cart = new Cart({ userId: req.user?._id, items: [] });
+
+            for (const guestItem of guestItems) {
+                const itemIndex = cart.items.findIndex(i => i.listingId.toString() === guestItem.listingId);
+                if (itemIndex > -1) {
+                    cart.items[itemIndex].quantity += guestItem.quantity;
+                } else {
+                    cart.items.push(guestItem);
+                }
+            }
+
+            await (cart as any).save();
+            const populatedCart = await CartController.getPopulated(req.user?._id);
+            return ApiResponse.success(res, 200, 'Guest cart merged', { cart: populatedCart });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    static async toggleGiftWrap(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { listingId } = req.params;
+            const cart = await Cart.findOne({ userId: req.user?._id });
+            if (!cart) throw new AppError('Cart not found', 404);
+
+            const item = cart.items.find(i => i.listingId.toString() === listingId);
+            if (!item) throw new AppError('Item not found in cart', 404);
+
+            item.isGiftWrapped = !item.isGiftWrapped;
+            await (cart as any).save();
+
+            const populatedCart = await CartController.getPopulated(req.user?._id);
+            return ApiResponse.success(res, 200, `Gift wrap ${item.isGiftWrapped ? 'added' : 'removed'}`, { cart: populatedCart });
         } catch (error) {
             next(error);
         }

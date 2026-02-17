@@ -3,6 +3,8 @@ import { Wallet, Transaction } from '../models/wallet.model';
 import { PayoutRequest } from '../models/payoutRequest.model';
 import { AppError } from '../utils/AppError';
 import { ApiResponse } from '../utils/ApiResponse';
+import { User } from '../models/user.model';
+import mongoose from 'mongoose';
 
 export class WalletController {
 
@@ -28,9 +30,7 @@ export class WalletController {
     }
 
     // Internal method to handle order commission and credits
-    static async handleOrderCredit(subOrderId: string, amount: number, sellerId: string) {
-        // 1. Calculate commission (e.g., 10%)
-        const commission = amount * 0.10;
+    static async handleOrderCredit(subOrderId: string, amount: number, sellerId: string, commission: number) {
         const netAmount = amount - commission;
 
         const wallet = await Wallet.findOneAndUpdate(
@@ -39,19 +39,42 @@ export class WalletController {
             { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
         );
 
-        // 2. Add to pending balance (will be moved to balance after delivery/return period)
+        // 2. Add to pending balance (Locked in Escrow)
         wallet.pendingBalance += netAmount;
         await (wallet as any).save();
 
-        // 3. Record transaction
+        // 3. Record transaction for Seller
         await Transaction.create({
             walletId: wallet._id,
             amount: netAmount,
             type: 'credit',
             status: 'pending',
-            description: `Credit for order ${subOrderId} (Net of 10% commission)`,
+            description: `Credit for sub-order ${subOrderId} (Net of ₹${commission.toLocaleString()} commission)`,
             subOrderId
         });
+
+        // 4. Credit Admin Wallet for Commission
+        const admin = await User.findOne({ role: 'admin' });
+        if (admin) {
+            const adminWallet = await Wallet.findOneAndUpdate(
+                { userId: admin._id },
+                { $setOnInsert: { userId: admin._id } },
+                { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+            );
+            if (adminWallet) {
+                adminWallet.balance += commission;
+                await adminWallet.save();
+
+                await Transaction.create({
+                    walletId: adminWallet._id,
+                    amount: commission,
+                    type: 'credit',
+                    status: 'completed',
+                    description: `Commission from sub-order ${subOrderId}`,
+                    subOrderId
+                });
+            }
+        }
     }
 
     static async refundToBuyerWallet(subOrderId: string, amount: number, buyerId: string, sellerId: string, reason: string) {
@@ -89,6 +112,21 @@ export class WalletController {
                     subOrderId
                 });
             }
+        }
+    }
+
+    static async settleSubOrderFunds(subOrderId: string, amount: number, sellerId: string) {
+        const wallet = await Wallet.findOne({ userId: sellerId });
+        if (wallet && wallet.pendingBalance >= amount) {
+            wallet.pendingBalance -= amount;
+            wallet.balance += amount;
+            await (wallet as any).save();
+
+            // Update transaction status
+            await Transaction.findOneAndUpdate(
+                { subOrderId, walletId: wallet._id, type: 'credit', status: 'pending' },
+                { status: 'completed', description: `Settled funds for order ${subOrderId}` }
+            );
         }
     }
 
