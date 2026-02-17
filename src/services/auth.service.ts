@@ -108,12 +108,14 @@ export class AuthService {
         });
 
         // 3. Create Shop
+        // Store businessDetails (text description from registration form) in the description field
+        // The businessDetails object (pan, gstin, address) will be filled later during KYC
         const slug = shopName.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '') + '-' + Date.now();
         const shop = await Shop.create({
             sellerId: user._id,
             name: shopName,
             slug,
-            businessDetails,
+            description: businessDetails, // Store the seller's business description here
             kycStatus: 'pending'
         });
 

@@ -87,4 +87,53 @@ export class NotificationService {
             await this.sendSMS(phone, smsMessage);
         }
     }
+
+    /**
+     * Send Product Approval Notification to Seller
+     */
+    static async sendProductApproval(email: string, phone: string, sellerName: string, productTitle: string) {
+        const subject = 'Product Approved - Now Live on Marketplace!';
+        const html = `
+            <h1>Congratulations ${sellerName}!</h1>
+            <p>Your product "<strong>${productTitle}</strong>" has been reviewed and approved by our admin team.</p>
+            <p>It is now live on the Handicraft Marketplace and available for customers to purchase.</p>
+            <p>You can view and manage your product from your Seller Dashboard.</p>
+            <p>Happy selling!</p>
+            <p>Best regards,<br>Handicraft Marketplace Team</p>
+        `;
+
+        const smsMessage = `Congratulations ${sellerName}! Your product "${productTitle}" is now live on Handicraft Marketplace.`;
+
+        await this.sendEmail(email, subject, html);
+        if (phone) {
+            await this.sendSMS(phone, smsMessage);
+        }
+    }
+
+    /**
+     * Send Product Rejection Notification to Seller
+     */
+    static async sendProductRejection(email: string, phone: string, sellerName: string, productTitle: string) {
+        const subject = 'Product Review Update';
+        const html = `
+            <h1>Hello ${sellerName},</h1>
+            <p>Thank you for submitting your product "<strong>${productTitle}</strong>" to the Handicraft Marketplace.</p>
+            <p>After careful review, we regret to inform you that this product could not be approved at this time.</p>
+            <p>This may be due to:</p>
+            <ul>
+                <li>Incomplete product information</li>
+                <li>Quality standards not met</li>
+                <li>Policy violations</li>
+            </ul>
+            <p>You can edit and resubmit your product from the Seller Dashboard. If you have questions, please contact our support team.</p>
+            <p>Best regards,<br>Handicraft Marketplace Team</p>
+        `;
+
+        const smsMessage = `Hello ${sellerName}, your product "${productTitle}" requires changes. Please check your email for details.`;
+
+        await this.sendEmail(email, subject, html);
+        if (phone) {
+            await this.sendSMS(phone, smsMessage);
+        }
+    }
 }

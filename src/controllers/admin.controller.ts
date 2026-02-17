@@ -154,19 +154,34 @@ export class AdminController {
                 const shop = listing.shopId as any;
 
                 if (status === 'approved') {
+                    // Send in-app notification
                     await NotificationService.sendNotification(
                         seller._id,
                         'product_approved',
                         'Product Approved!',
                         `Your product "${product.title}" has been approved and is now live.`
                     );
-                    // Also could send email here if we wanted, let's stick to in-app/logger for now unless asked
+                    // Send email and SMS
+                    await NotificationService.sendProductApproval(
+                        seller.email,
+                        seller.phone || '',
+                        seller.name,
+                        product.title
+                    );
                 } else if (status === 'rejected') {
+                    // Send in-app notification
                     await NotificationService.sendNotification(
                         seller._id,
                         'product_rejected',
                         'Product Review Update',
                         `Your product "${product.title}" requires changes or was rejected.`
+                    );
+                    // Send email and SMS
+                    await NotificationService.sendProductRejection(
+                        seller.email,
+                        seller.phone || '',
+                        seller.name,
+                        product.title
                     );
                 }
             }
