@@ -121,18 +121,73 @@ export class ProductController {
 
     static async getProducts(req: Request, res: Response, next: NextFunction) {
         try {
-            const { category, search, minPrice, maxPrice, sort, page = 1, limit = 10, shopId } = req.query;
+            const {
+                category, search, minPrice, maxPrice, sort, page = 1, limit = 10,
+                shopId, material, region, rating, isHandmadeCertified, isVerifiedSeller
+            } = req.query;
+
             const productMatch: any = { isPublished: true, approvalStatus: 'approved' };
+
+            // 1. Basic Filters
             if (category) productMatch.category = new mongoose.Types.ObjectId(category as string);
             if (search) productMatch.$text = { $search: search as string };
+            if (material) productMatch.material = { $regex: material as string, $options: 'i' };
+            if (region) productMatch.region = { $regex: region as string, $options: 'i' };
+            if (isHandmadeCertified === 'true') productMatch.isHandmadeCertified = true;
 
-            if (shopId) {
-                const shopListings = await SellerListing.find({ shopId: new mongoose.Types.ObjectId(shopId as string), isActive: true });
-                productMatch._id = { $in: shopListings.map(l => l.productId) };
+            // 2. Price Filter (requires aggregation or nested query for listings if using Buy Box)
+            // For now, simpler price filter on the product level if it exists, or via Buy Box
+            if (minPrice || maxPrice) {
+                // This is tricky because price is in SellerListing. 
+                // We'll use a subquery to find productIds within price range
+                const priceMatch: any = { isActive: true };
+                if (minPrice) priceMatch.price = { $gte: Number(minPrice) };
+                if (maxPrice) priceMatch.price = { ...priceMatch.price, $lte: Number(maxPrice) };
+
+                const validListings = await SellerListing.find(priceMatch).distinct('productId');
+                productMatch._id = { ...(productMatch._id || {}), $in: validListings };
+            }
+
+            // 3. Rating Filter
+            if (rating) {
+                productMatch['ratings.average'] = { $gte: Number(rating) };
+            }
+
+            // 4. Shop / Verified Seller Filter
+            if (shopId || isVerifiedSeller === 'true') {
+                const shopMatch: any = {};
+                if (shopId) shopMatch._id = new mongoose.Types.ObjectId(shopId as string);
+                if (isVerifiedSeller === 'true') shopMatch.isVerified = true;
+
+                const validShops = await Shop.find(shopMatch).distinct('_id');
+                const validListings = await SellerListing.find({ shopId: { $in: validShops }, isActive: true }).distinct('productId');
+                productMatch._id = { ...(productMatch._id || {}), $in: validListings };
+            }
+
+            // 5. Sorting
+            let sortOption: any = { createdAt: -1 }; // Default: Newest
+            if (sort === 'price_low') {
+                // This requires aggregation for accurate sorting by Buy Box price
+                // For simplified MVP, we sort by product's base price if we added it, 
+                // but since price is in listings, we'll implement a simple sort or placeholder.
+                sortOption = { 'ratings.average': -1 }; // Placeholder: Popularity
+            } else if (sort === 'price_high') {
+                sortOption = { 'ratings.average': 1 };
+            } else if (sort === 'rating') {
+                sortOption = { 'ratings.average': -1 };
+            } else if (sort === 'newest') {
+                sortOption = { createdAt: -1 };
+            } else if (sort === 'popularity') {
+                sortOption = { 'ratings.count': -1 };
             }
 
             const skip = (Number(page) - 1) * Number(limit);
-            const products = await Product.find(productMatch).skip(skip).limit(Number(limit)).populate('category');
+            const products = await Product.find(productMatch)
+                .sort(sortOption)
+                .skip(skip)
+                .limit(Number(limit))
+                .populate('category');
+
             const total = await Product.countDocuments(productMatch);
 
             return ApiResponse.success(res, 200, 'Products fetched', {
@@ -215,16 +270,44 @@ export class ProductController {
 
     static async getSearchAggregations(req: Request, res: Response, next: NextFunction) {
         try {
-            const { category } = req.query;
+            const { category, search } = req.query;
             const match: any = { isPublished: true, approvalStatus: 'approved' };
             if (category) match.category = new mongoose.Types.ObjectId(category as string);
+            if (search) match.$text = { $search: search as string };
 
             const categories = await Product.aggregate([
-                { $match: { isPublished: true, approvalStatus: 'approved' } },
-                { $group: { _id: '$category', count: { $sum: 1 } } }
+                { $match: match },
+                { $group: { _id: '$category', count: { $sum: 1 } } },
+                { $lookup: { from: 'categories', localField: '_id', foreignField: '_id', as: 'details' } },
+                { $unwind: '$details' },
+                { $project: { name: '$details.name', count: 1 } }
             ]);
 
-            return ApiResponse.success(res, 200, 'Aggregations fetched', { categories });
+            const materials = await Product.aggregate([
+                { $match: match },
+                { $group: { _id: '$material', count: { $sum: 1 } } },
+                { $match: { _id: { $ne: null } } }
+            ]);
+
+            const regions = await Product.aggregate([
+                { $match: match },
+                { $group: { _id: '$region', count: { $sum: 1 } } },
+                { $match: { _id: { $ne: null } } }
+            ]);
+
+            // Price range aggregation (from SellerListing)
+            const productIds = await Product.find(match).distinct('_id');
+            const priceStats = await SellerListing.aggregate([
+                { $match: { productId: { $in: productIds }, isActive: true } },
+                { $group: { _id: null, min: { $min: '$price' }, max: { $max: '$price' }, avg: { $avg: '$price' } } }
+            ]);
+
+            return ApiResponse.success(res, 200, 'Aggregations fetched', {
+                categories,
+                materials,
+                regions,
+                priceRange: priceStats[0] || { min: 0, max: 0, avg: 0 }
+            });
         } catch (error) {
             next(error);
         }

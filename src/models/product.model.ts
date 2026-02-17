@@ -60,6 +60,10 @@ export interface IProduct extends Document {
     fixedCommissionFee?: number; // Override category-based percentage
     hsnCode?: string; // Goods and Services Tax code
 
+    material?: string;
+    region?: string;
+    isHandmadeCertified: boolean;
+
     createdAt: Date;
     updatedAt: Date;
 }
@@ -143,7 +147,10 @@ const ProductSchema: Schema = new Schema({
     digitalFileUrl: { type: String },
     isMadeToOrder: { type: Boolean, default: false },
     fixedCommissionFee: { type: Number },
-    hsnCode: { type: String }
+    hsnCode: { type: String },
+    material: { type: String, trim: true },
+    region: { type: String, trim: true },
+    isHandmadeCertified: { type: Boolean, default: false }
 }, { timestamps: true });
 
 ProductSchema.index({ title: 'text', description: 'text', tags: 'text' });
