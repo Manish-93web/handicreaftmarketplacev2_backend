@@ -39,6 +39,35 @@ export class ShopController {
         }
     }
 
+    static async getShops(req: Request, res: Response, next: NextFunction) {
+        try {
+            // Fetch all active shops.
+            // In a real scenario, we would add pagination and filtering here.
+            const shops = await Shop.find({ isActive: true })
+                .select('name slug description logo banner isVerified kycStatus performanceScore')
+                .sort({ performanceScore: -1, createdAt: -1 });
+
+            return ApiResponse.success(res, 200, 'Shops fetched successfully', { shops });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    static async getShopBySlug(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { slug } = req.params;
+            const shop = await Shop.findOne({ slug, isActive: true }).populate('sellerId', 'name email');
+
+            if (!shop) {
+                throw new AppError('Shop not found', 404);
+            }
+
+            return ApiResponse.success(res, 200, 'Shop details fetched', { shop });
+        } catch (error) {
+            next(error);
+        }
+    }
+
     static async getMyShop(req: Request, res: Response, next: NextFunction) {
         try {
             const shop = await Shop.findOne({ sellerId: req.user?._id });

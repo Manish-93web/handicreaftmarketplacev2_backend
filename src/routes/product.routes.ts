@@ -12,11 +12,12 @@ router.post('/categories', protect, restrictTo('admin'), CategoryController.crea
 // Products
 router.get('/suggestions', ProductController.getSuggestions);
 router.get('/aggregations', ProductController.getSearchAggregations);
+router.get('/my-products', protect, restrictTo('seller', 'admin'), ProductController.getMyProducts);
 router.get('/', ProductController.getProducts); // Public listing
 router.get('/:slug', ProductController.getProductBySlug);
 router.post('/', protect, restrictTo('seller', 'admin'), ProductController.createProduct);
 router.post('/bulk-import', protect, restrictTo('seller', 'admin'), ProductController.bulkImportProducts);
-router.get('/my-products', protect, restrictTo('seller', 'admin'), ProductController.getMyProducts);
+router.patch('/:id', protect, restrictTo('seller', 'admin'), ProductController.updateProduct);
 router.patch('/:id/status', protect, restrictTo('admin'), ProductController.updateProductStatus);
 
 export default router;

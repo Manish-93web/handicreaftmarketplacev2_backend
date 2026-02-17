@@ -71,6 +71,57 @@ export class ProductController {
         }
     }
 
+    static async updateProduct(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            const shop = await Shop.findOne({ sellerId: req.user?._id });
+            if (!shop) throw new AppError('Shop not found', 404);
+
+            // Find the listing to ensure ownership
+            const listing = await SellerListing.findOne({ productId: id, shopId: shop._id });
+            if (!listing) throw new AppError('Product not found in your shop', 404);
+
+            const {
+                title,
+                price,
+                stock,
+                sku,
+                category,
+                status, // 'draft' or 'submit'
+                images,
+                description
+            } = req.body;
+
+            // Update Product
+            const productUpdates: any = {};
+            if (title) productUpdates.title = title;
+            if (description) productUpdates.description = description;
+            if (category) productUpdates.category = category;
+            if (images) productUpdates.images = images;
+
+            // If status is provided, update approval status
+            if (status === 'submit') {
+                productUpdates.approvalStatus = 'pending';
+            } else if (status === 'draft') {
+                productUpdates.approvalStatus = 'draft';
+            }
+
+            const product = await Product.findByIdAndUpdate(id, productUpdates, { new: true });
+
+            // Update Listing
+            const listingUpdates: any = {};
+            if (price !== undefined) listingUpdates.price = price;
+            if (stock !== undefined) listingUpdates.stock = stock;
+            if (sku) listingUpdates.sku = sku;
+
+            const updatedListing = await SellerListing.findByIdAndUpdate(listing._id, listingUpdates, { new: true });
+
+            return ApiResponse.success(res, 200, 'Product updated successfully', { product, listing: updatedListing });
+        } catch (error) {
+            next(error);
+        }
+    }
+
     static async bulkImportProducts(req: Request, res: Response, next: NextFunction) {
         try {
             const shop = await Shop.findOne({ sellerId: req.user?._id });
@@ -111,12 +162,40 @@ export class ProductController {
 
     static async getProducts(req: Request, res: Response, next: NextFunction) {
         try {
-            const { category, search, minPrice, maxPrice, sort, page = 1, limit = 10 } = req.query;
+            const { category, search, minPrice, maxPrice, sort, page = 1, limit = 10, shopId } = req.query;
 
             // Build Match Stage for Product
             const productMatch: any = { isPublished: true };
             if (category) productMatch.category = new mongoose.Types.ObjectId(category as string);
             if (search) productMatch.$text = { $search: search as string };
+
+            // Special handling for shopId: Filter listings first to get Product IDs
+            let productIdsFromShop: mongoose.Types.ObjectId[] | null = null;
+            if (shopId) {
+                if (!mongoose.isValidObjectId(shopId)) {
+                    return ApiResponse.success(res, 200, 'Invalid Shop ID', { products: [], pagination: { total: 0, page: 1, limit: 10, pages: 0 } });
+                }
+                const shopListings = await SellerListing.find({
+                    shopId: new mongoose.Types.ObjectId(shopId as string),
+                    isActive: true,
+                    stock: { $gt: 0 }
+                }).select('productId');
+
+                productIdsFromShop = shopListings.map(l => l.productId);
+
+                if (productIdsFromShop.length === 0) {
+                    return ApiResponse.success(res, 200, 'No products found for this shop', { products: [], pagination: { total: 0, page: 1, limit: 10, pages: 0 } });
+                }
+                productMatch._id = { $in: productIdsFromShop };
+            }
+
+            // Listing match query
+            const listingMatch: any = {
+                $expr: { $eq: ['$productId', '$$productId'] },
+                isActive: true,
+                stock: { $gt: 0 }
+            };
+            // shopId filtering is now done via productMatch._id
 
             const pipeline: any[] = [
                 { $match: productMatch },
@@ -125,14 +204,25 @@ export class ProductController {
                         from: 'sellerlistings',
                         let: { productId: '$_id' },
                         pipeline: [
-                            { $match: { $expr: { $eq: ['$productId', '$$productId'] }, isActive: true, stock: { $gt: 0 } } },
+                            {
+                                $match: {
+                                    $and: [
+                                        { $expr: { $eq: ['$productId', '$$productId'] } },
+                                        { isActive: true },
+                                        { stock: { $gt: 0 } },
+                                        // If shopId is provided, we MUST only join with that shop's listing
+                                        // to ensure we show the price/stock defined by THAT shop.
+                                        ...(shopId ? [{ shopId: new mongoose.Types.ObjectId(shopId as string) }] : [])
+                                    ]
+                                }
+                            },
                             { $sort: { isBuyBoxWinner: -1, price: 1 } },
                             { $limit: 1 }
                         ],
                         as: 'buyBoxListing'
                     }
                 },
-                { $unwind: { path: '$buyBoxListing', preserveNullAndEmptyArrays: false } }, // Only show products with at least one active listing
+                { $unwind: { path: '$buyBoxListing', preserveNullAndEmptyArrays: false } },
                 {
                     $lookup: {
                         from: 'categories',
@@ -163,7 +253,7 @@ export class ProductController {
             pipeline.push({ $limit: Number(limit) });
 
             const products = await Product.aggregate(pipeline);
-            const total = await Product.countDocuments(productMatch); // Approx total
+            const total = await Product.countDocuments(productMatch);
 
             const { currency, locale } = req.context;
             const formattedProducts = products.map((p: any) => {
@@ -178,7 +268,7 @@ export class ProductController {
                     price,
                     displayPrice,
                     currency,
-                    shopId: p.buyBoxListing.shopId // For backward compatibility in frontend if needed
+                    shopId: p.buyBoxListing.shopId
                 };
             });
 
@@ -192,6 +282,7 @@ export class ProductController {
                 }
             });
         } catch (error) {
+            console.error('Error in getProducts:', error);
             next(error);
         }
     }

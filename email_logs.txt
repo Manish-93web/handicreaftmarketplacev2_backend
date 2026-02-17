@@ -1,0 +1,48 @@
+
+------------------------------------------------------------
+[2026-02-17T05:24:58.007Z] EMAIL TO: manishtest@gmail.com
+SUBJECT: Congratulations! Your Seller Account has been Approved
+CONTENT:
+
+            <h1>Congratulations Manish Test!</h1>
+            <p>Your application to join the Handicraft Marketplace has been approved by the Admin.</p>
+            <p>Here are your login credentials for the Seller Dashboard:</p>
+            <ul>
+                <li><strong>Email:</strong> manishtest@gmail.com</li>
+                <li><strong>Password:</strong> bd12bc952fb4124f</li>
+            </ul>
+            <p>Please login and change your password immediately for security.</p>
+            <p>Happy selling!</p>
+        
+------------------------------------------------------------
+
+------------------------------------------------------------
+[2026-02-17T05:35:11.954Z] EMAIL TO: manishtest@gmail.com
+SUBJECT: Congratulations! Your Seller Account has been Approved
+CONTENT:
+
+            <h1>Congratulations Manish Test!</h1>
+            <p>Your application to join the Handicraft Marketplace has been approved by the Admin.</p>
+            <p>Here are your login credentials for the Seller Dashboard:</p>
+            <ul>
+                <li><strong>Email:</strong> manishtest@gmail.com</li>
+                <li><strong>Password:</strong> d667c55e1f490218</li>
+            </ul>
+            <p>Please login and change your password immediately for security.</p>
+            <p>Happy selling!</p>
+        
+------------------------------------------------------------
+
+------------------------------------------------------------
+[2026-02-17T07:03:45.919Z] EMAIL TO: admin@handicraft.com
+SUBJECT: Product Approved - Now Live on Marketplace!
+CONTENT:
+
+            <h1>Congratulations Super Admin!</h1>
+            <p>Your product "<strong>jkjkl</strong>" has been reviewed and approved by our admin team.</p>
+            <p>It is now live on the Handicraft Marketplace and available for customers to purchase.</p>
+            <p>You can view and manage your product from your Seller Dashboard.</p>
+            <p>Happy selling!</p>
+            <p>Best regards,<br>Handicraft Marketplace Team</p>
+        
+------------------------------------------------------------

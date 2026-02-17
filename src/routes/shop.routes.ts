@@ -4,7 +4,11 @@ import { protect, restrictTo } from '../middlewares/auth.middleware';
 
 const router = Router();
 
-router.use(protect); // All routes require login
+// Public Routes
+router.get('/', ShopController.getShops);
+router.get('/:slug', ShopController.getShopBySlug);
+
+router.use(protect); // All routes below require login
 
 router.post('/', ShopController.createShop);
 router.get('/me', ShopController.getMyShop);
