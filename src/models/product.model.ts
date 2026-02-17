@@ -71,7 +71,7 @@ export interface IProduct extends Document {
 const ProductSchema: Schema = new Schema({
     title: { type: String, required: true, trim: true },
     slug: { type: String, required: true, unique: true, lowercase: true },
-    sku: { type: String, required: true },
+    sku: { type: String },
     stock: { type: Number, default: 0 },
     stockStatus: {
         type: String,
@@ -82,7 +82,7 @@ const ProductSchema: Schema = new Schema({
     condition: {
         type: String,
         enum: ['new', 'used_like_new', 'used_good', 'used_fair', 'refurbished'],
-        required: true
+        default: 'new'
     },
     description: { type: String, required: true },
     shortDescription: { type: String },

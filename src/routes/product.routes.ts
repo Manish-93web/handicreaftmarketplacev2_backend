@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { CategoryController } from '../controllers/category.controller';
 import { ProductController } from '../controllers/product.controller';
-import { protect, restrictTo } from '../middlewares/auth.middleware';
+import { protect, optionalProtect, restrictTo } from '../middlewares/auth.middleware';
 
 const router = Router();
 
@@ -11,8 +11,8 @@ router.post('/categories', protect, restrictTo('admin'), CategoryController.crea
 
 // Products
 router.get('/suggestions', ProductController.getSuggestions);
-router.get('/recently-viewed', protect, ProductController.getRecentlyViewed);
-router.post('/track-view', protect, ProductController.trackView);
+router.get('/recently-viewed', optionalProtect, ProductController.getRecentlyViewed);
+router.post('/track-view', optionalProtect, ProductController.trackView);
 router.get('/aggregations', ProductController.getSearchAggregations);
 router.get('/my-products', protect, restrictTo('seller', 'admin'), ProductController.getMyProducts);
 router.get('/', ProductController.getProducts); // Public listing

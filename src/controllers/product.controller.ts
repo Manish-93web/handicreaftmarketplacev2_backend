@@ -23,6 +23,11 @@ export class ProductController {
                 ...otherData
             } = req.body;
 
+            // Validate category ID
+            if (!mongoose.Types.ObjectId.isValid(category)) {
+                throw new AppError('Invalid category ID. Please select a category from the list.', 400);
+            }
+
             const slug = title.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '') + '-' + Date.now();
 
             const finalSeoTitle = seoTitle || `${title} | Premium Handmade ${category}`;
@@ -190,8 +195,32 @@ export class ProductController {
 
             const total = await Product.countDocuments(productMatch);
 
+            // Enrich with Buy Box info (Price & Shop)
+            const productIds = products.map(p => p._id);
+            const winners = await SellerListing.find({
+                productId: { $in: productIds },
+                isBuyBoxWinner: true,
+                isActive: true
+            }).populate('shopId', 'name slug logo isVerified');
+
+            const winnerMap = new Map(winners.map(w => [w.productId.toString(), w]));
+
+            const enrichedProducts = products.map(p => {
+                const productObj = p.toObject() as any;
+                const winner = winnerMap.get(p._id.toString());
+                if (winner) {
+                    productObj.price = winner.price;
+                    productObj.shopId = winner.shopId;
+                } else {
+                    // Fallback for UI stability
+                    productObj.price = productObj.price || 0;
+                    productObj.shopId = productObj.shopId || { name: 'Handicraft Artisan' };
+                }
+                return productObj;
+            });
+
             return ApiResponse.success(res, 200, 'Products fetched', {
-                products,
+                products: enrichedProducts,
                 pagination: { total, page: Number(page), limit: Number(limit), pages: Math.ceil(total / Number(limit)) }
             });
         } catch (error) {
@@ -206,9 +235,21 @@ export class ProductController {
             if (!product) throw new AppError('Product not found', 404);
 
             const listings = await SellerListing.find({ productId: product._id, isActive: true })
-                .populate('shopId', 'name logo rating').sort({ isBuyBoxWinner: -1, price: 1 });
+                .populate('shopId', 'name logo rating slug isVerified description').sort({ isBuyBoxWinner: -1, price: 1 });
 
-            return ApiResponse.success(res, 200, 'Product details fetched', { product, listings });
+            const productObj = product.toObject() as any;
+            const buyBoxListing = listings.find(l => l.isBuyBoxWinner) || listings[0];
+
+            if (buyBoxListing) {
+                productObj.buyBoxListing = buyBoxListing;
+                productObj.price = buyBoxListing.price;
+                productObj.shopId = buyBoxListing.shopId;
+            } else {
+                productObj.price = 0;
+                productObj.shopId = { name: 'Handicraft Artisan' };
+            }
+
+            return ApiResponse.success(res, 200, 'Product details fetched', { product: productObj, listings });
         } catch (error) {
             next(error);
         }
