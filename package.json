@@ -4,12 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon src/server.ts",
-    "build": "tsc",
-    "start": "node dist/server.js",
-    "postinstall": "npm run build",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+  "dev": "nodemon src/server.ts",
+  "build": "tsc",
+  "start": "node dist/server.js",
+  "test": "echo \"Error: no test specified\" && exit 1"
+}
+,
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Manish-93web/handicreaftmarketplacev2_backend.git"
