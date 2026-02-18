@@ -43,7 +43,7 @@ app.use(helmet({
             scriptSrc: ["'self'", "'unsafe-inline'"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             imgSrc: ["'self'", "data:", "https://res.cloudinary.com"], // Allow Cloudinary images
-            connectSrc: ["'self'", "http://localhost:5000", "http://127.0.0.1:5000", "https://handicreaftmarketplacev2-backend-pxvv.onrender.com"],
+            connectSrc: ["'self'", "http://localhost:5000", "http://127.0.0.1:5000", "https://handicreaftmarketplacev2-backend-pxvv.onrender.com", "https://relaxed-toffee-348246.netlify.app"],
             fontSrc: ["'self'", "https://fonts.gstatic.com"],
             objectSrc: ["'none'"],
             upgradeInsecureRequests: [],
@@ -70,7 +70,14 @@ const authLimiter = rateLimit({
 // app.use('/api/v1/auth/register', authLimiter);
 
 app.use(cors({
-    origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'https://handicreaftmarketplacev2.onrender.com', /\.onrender\.com$/],
+    origin: [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'https://handicreaftmarketplacev2.onrender.com',
+        /\.onrender\.com$/,
+        'https://relaxed-toffee-348246.netlify.app',
+        /\.netlify\.app$/
+    ],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization', 'x-xsrf-token', 'X-Currency', 'Accept-Language']
 }));
@@ -80,8 +87,8 @@ app.get('/api/v1/csrf-init', (req: Request, res: Response) => {
     const token = crypto.randomBytes(32).toString('hex');
     res.cookie('XSRF-TOKEN', token, {
         httpOnly: false,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: true, // Required for SameSite=None
+        sameSite: 'none', // Required for cross-site requests
         path: '/'
     });
     res.status(200).json({ status: 'OK', message: 'CSRF token initialized' });

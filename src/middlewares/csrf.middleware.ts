@@ -8,8 +8,8 @@ export const csrfProtection = (req: Request, res: Response, next: NextFunction) 
         const token = crypto.randomBytes(32).toString('hex');
         res.cookie('XSRF-TOKEN', token, {
             httpOnly: false,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
+            secure: true, // Required for SameSite=None
+            sameSite: 'none', // Required for cross-site requests
             path: '/'
         });
         logger.debug('Generated new CSRF token for cookie-less request');
@@ -44,8 +44,8 @@ export const csrfProtection = (req: Request, res: Response, next: NextFunction) 
     const newToken = crypto.randomBytes(32).toString('hex');
     res.cookie('XSRF-TOKEN', newToken, {
         httpOnly: false,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: true, // Required for SameSite=None
+        sameSite: 'none', // Required for cross-site requests
         path: '/'
     });
 
