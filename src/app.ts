@@ -43,7 +43,7 @@ app.use(helmet({
             scriptSrc: ["'self'", "'unsafe-inline'"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             imgSrc: ["'self'", "data:", "https://res.cloudinary.com"], // Allow Cloudinary images
-            connectSrc: ["'self'", "http://localhost:5000", "http://127.0.0.1:5000"],
+            connectSrc: ["'self'", "http://localhost:5000", "http://127.0.0.1:5000", "https://handicreaftmarketplacev2-backend-pxvv.onrender.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com"],
             objectSrc: ["'none'"],
             upgradeInsecureRequests: [],
@@ -70,7 +70,7 @@ const authLimiter = rateLimit({
 // app.use('/api/v1/auth/register', authLimiter);
 
 app.use(cors({
-    origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+    origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'https://handicreaftmarketplacev2.onrender.com', /\.onrender\.com$/],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization', 'x-xsrf-token', 'X-Currency', 'Accept-Language']
 }));
@@ -126,11 +126,14 @@ import { globalErrorHandler } from './middlewares/error.middleware';
 import { AppError } from './utils/AppError';
 
 // Health Check
+app.get('/', (req: Request, res: Response) => {
+    res.status(200).json({ status: 'success', message: 'Handicraft Marketplace API is live!' });
+});
 app.get('/api/health', (req: Request, res: Response) => {
-    res.status(200).json({ status: 'OK', message: 'Backend is running' });
+    res.status(200).json({ status: 'success', message: 'Backend is running' });
 });
 app.get('/api/v1/health', (req: Request, res: Response) => {
-    res.status(200).json({ status: 'OK', message: 'Backend v1 is running' });
+    res.status(200).json({ status: 'success', message: 'Backend v1 is running' });
 });
 
 // Handle undefined routes
